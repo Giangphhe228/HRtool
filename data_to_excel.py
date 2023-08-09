@@ -46,6 +46,7 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
                                 tm.id as teamId,
                                 tm.name as teamName,
                                 ok.type,
+                                ok.id as krId,
                                 ok.objective_name as krDep,
                                 ok.title as krTeam,
                                 ok.key_result_name as krPer,
@@ -82,13 +83,12 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
         if data_dictionary.get("year") is not None:
             sql_query += " and EXTRACT(YEAR FROM ok.created_at) = %(year)s"
         if data_dictionary.get("department_id") is not None:
-            sql_query += " and AND de.id = %(department_id)s"
+            sql_query += " and de.id = %(department_id)s"
         # print("đay là data_dictionary: ", data_dictionary)
         # print("đay là sql_query: ", sql_query)
         cursor.execute(sql_query, data_dictionary)
         result = cursor.fetchall()
         dataframe = pd.DataFrame(result)
-        print("các column: ", dataframe)
         # đóng kết nối sau khi đã lấy được dữ liệu
         new_db_connection.close()
         cursor.close()
@@ -96,21 +96,21 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
             return ("Với các params được cung cấp không có dữ liệu nào được tìm thấy!")
         else:
             dataframe.columns = ['employeeId', 'Name', 'level', 'teamId', 'teamName',
-                            'Loại', 'krId', 'KR phòng', 'KR team', 'KR cá nhân', 'Công thức tính', 'Giá trị tính',
+                            'Loại', 'krId', 'KR phòng', 'KR team', 'KR cá nhân', 'Công thức tính',
                             'Nguồn dữ liệu', 'Định kỳ tính', 'Đơn vị tính', 'Điều kiện', 'Norm',
                             '% Trọng số chỉ tiêu', 'Kết quả', 'Tỷ lệ', 'Tổng thời gian dự kiến/ ước tính công việc (giờ)',
-                                'Tổng thời gian thực hiện công việc thực tế (giờ)', 'Note']
+                                'Tổng thời gian thực hiện công việc thực tế (giờ)', 'Note dự kiến',"Note bằng chứng thực tế"]
 
             dataframe.sort_values('employeeId', inplace=True)
             # dataframe.drop(columns=[ei], axis=1, inplace=True)
             dataframe.drop(columns=['teamId'], axis=1, inplace=True)
-            dataframe.drop(columns=['Giá trị tính'], axis=1, inplace=True)
-            dataframe.replace("NUM", "%", inplace=True)
-            dataframe.replace("CAT", "Đạt/Không đạt", inplace=True)
-            dataframe.replace("MO", "Tháng", inplace=True)
-            dataframe.replace("QUAR", "Quý", inplace=True)
-            dataframe.replace("EQUAL", "=", inplace=True)
-            dataframe.fillna(0, inplace=True)
+            # dataframe.replace("NUM", "%", inplace=True)
+            # dataframe.replace("CAT", "Đạt/Không đạt", inplace=True)
+            # dataframe.replace("MO", "Tháng", inplace=True)
+            # dataframe.replace("QUAR", "Quý", inplace=True)
+            # dataframe.replace("EQUAL", "=", inplace=True)
+            # dataframe.fillna(0, inplace=True)
+            # print("đay là dataframe: ", dataframe)
             # dataframe.set_index(['id', 'full_name', 'department_name', 'team_name', 'type', 'okr_kpi_id', 'objective_name', 'type'], inplace=True)
             for value, str in levels.items():
                 temp_df = dataframe.loc[dataframe['level'] == value]
@@ -152,7 +152,7 @@ def formatKPIExcelSheet(file_path) -> None:
     name = 'Name'
     lv = 'level'
     tn = 'teamName'
-    note = 'Note'
+    note = 'Note dự kiến'
     tsct = '% Trọng số chỉ tiêu'
     kq = 'Kết quả'
     tl = 'Tỷ lệ'

@@ -281,20 +281,21 @@ class ExcelView(APIView):
         output_excel = basedir+'\outputExcel\KPI.xlsx'
         if os.path.exists(output_excel):
             os.remove(output_excel)
-            
-        result=data_to_excel.GenerateExcelSheet(excel_sheet,data_dictionary)
-        if result!='':
-            print(result)
-            return response({'message': 'query success but no output data'}, status=status.HTTP_200_OK)
-        #List all excel files in folder
-        excel_folder = excel_sheet
-        excel_files = [os.path.join(root, file) for root, folder, files in os.walk(excel_folder) for file in files if file.endswith(".xlsx")]
-        data_to_excel.synthesizeExcelFilebySheet(excel_files,output_excel)
 
-        # tạo workbook lưu trữ excel và response để trả về các file excel
-        wb_obj = openpyxl.load_workbook(output_excel)
-        if os.path.exists(output_excel):
-            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',status=status.HTTP_200_OK)
-            response['Content-Disposition'] = 'attachment; filename=kpi.xlsx'
-        wb_obj.save(response)
-        return response
+        result=data_to_excel.GenerateExcelSheet(excel_sheet,data_dictionary)
+        if result is False:
+            print(result)
+            return Response({'message': 'query success but no output data'}, status=status.HTTP_200_OK)
+        #List all excel files in folder
+        else:
+            excel_folder = excel_sheet
+            excel_files = [os.path.join(root, file) for root, folder, files in os.walk(excel_folder) for file in files if file.endswith(".xlsx")]
+            data_to_excel.synthesizeExcelFilebySheet(excel_files,output_excel)
+
+            # tạo workbook lưu trữ excel và response để trả về các file excel
+            wb_obj = openpyxl.load_workbook(output_excel)
+            if os.path.exists(output_excel):
+                response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',status=status.HTTP_200_OK)
+                response['Content-Disposition'] = 'attachment; filename=kpi.xlsx'
+            wb_obj.save(response)
+            return response
