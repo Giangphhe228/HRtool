@@ -28,7 +28,7 @@ SECRET_KEY = 'django-insecure-ffc)-jcozf)o-gv_x29cc7t(a9&*izd0hgsyeqkyu6h0#f0)4x
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 INTERNAL_IPS=['127.0.0.1',]
 
@@ -98,6 +98,14 @@ DATABASES = {
         'PASSWORD': 'password',
         'host': 'localhost',
         'PORT': '5432',
+    },
+    'fedatabase': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'employee-python',
+        'USER': 'postgres',
+        'PASSWORD': 'postgres',
+        'HOST': '172.27.228.144',
+        'PORT': '5433',
     }
 }
 

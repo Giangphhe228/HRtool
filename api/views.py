@@ -257,18 +257,21 @@ class ExcelView(APIView):
     permission_classes = [AllowAny]
     serializer_class = employee_serializers.exportExcelSerializer
 
-    def post(self,request):
+    def get(self,request):
         serializer = self.serializer_class(data=request.data)
+        # serializer.is_valid(raise_exception=True)
         data_dictionary={}
-        quater = request.data.get('quater')
-        month = request.data.get('month')
-        year = request.data.get('year')
-        department_id = request.data.get('department_id')
-        # print("day là department_id",department_id)
-        data_dictionary['quater'] = quater
+        deadline = request.data.get('deadline')
+        department_id = request.data.get('department_id') 
+        try:
+            data_to_excel.is_integer(department_id)
+            data_dictionary['department_id'] = department_id
+        except ValueError as e:
+            print(e)
+        month, year = data_to_excel.extract_month_year(deadline)
         data_dictionary['month'] = month
         data_dictionary['year'] = year
-        data_dictionary['department_id'] = department_id
+
         # to get the location of the current python file
         basedir = os.getcwd()
         # print("dayasoflka: ",basedir)
@@ -278,20 +281,15 @@ class ExcelView(APIView):
         output_excel = basedir+'\outputExcel\KPI.xlsx'
         if os.path.exists(output_excel):
             os.remove(output_excel)
-        levels = {
-                1: 'L1',
-                2: 'L2',
-                3: 'L3',
-                # -1: 'NoLevel',
-                0: 'SVCNTS'
-                }
-        
-        data_to_excel.GenerateExcelSheet(excel_sheet,levels,data_dictionary)
-        
+            
+        result=data_to_excel.GenerateExcelSheet(excel_sheet,data_dictionary)
+        if result!='':
+            print(result)
+            return response({'message': 'query success but no output data'}, status=status.HTTP_200_OK)
         #List all excel files in folder
         excel_folder = excel_sheet
         excel_files = [os.path.join(root, file) for root, folder, files in os.walk(excel_folder) for file in files if file.endswith(".xlsx")]
-        data_to_excel.synthesizeExcelFilebySheet(excel_files,output_excel,levels)
+        data_to_excel.synthesizeExcelFilebySheet(excel_files,output_excel)
 
         # tạo workbook lưu trữ excel và response để trả về các file excel
         wb_obj = openpyxl.load_workbook(output_excel)

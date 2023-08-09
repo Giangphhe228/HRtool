@@ -62,14 +62,7 @@ class LoginSerializer(serializers.Serializer):
 class LogoutSerializer(serializers.Serializer):
     refresh_token = serializers.CharField(write_only=True)
 
-class Quater(django_models.TextChoices):
-        Q1 = 'Q1', 'Q1'
-        Q2 = 'Q2', 'Q2'
-        Q3 = 'Q3', 'Q3'
-        Q4 = 'Q4', 'Q4'
 
 class exportExcelSerializer(serializers.Serializer):
-    quater = serializers.ChoiceField(choices=Quater.choices, default=Quater.Q1)
-    month = serializers.IntegerField(write_only=True)
-    year = serializers.IntegerField(write_only=True)
+    deadline = serializers.CharField(write_only=True)
     department_id= serializers.IntegerField(write_only=True)

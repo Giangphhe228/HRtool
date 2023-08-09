@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 import openpyxl
-from django.db import connection
+from django.db import connection, connections
 from openpyxl import Workbook
 from openpyxl.styles import Font
 from openpyxl import load_workbook
@@ -10,85 +10,117 @@ from openpyxl.styles import Alignment
 from openpyxl.styles import PatternFill, Border, Side
 from openpyxl.utils import range_boundaries
 
-def GenerateExcelSheet(basedir, levels,data_dictionary) -> None:
-        cursor = connection.cursor()
+levels = {
+                1: 'L1',
+                2: 'L2',
+                3: 'L3',
+                # -1: 'NoLevel',
+                0: 'SVCNTS'
+                }
+def is_integer(input_str):
+    try:
+        int(input_str)  # Thử chuyển chuỗi thành số nguyên
+        return True     # Nếu thành công, trả về True
+    except ValueError:
+        raise ValueError(f"'{input_str}' cannot be converted to an integer.")  # Nếu xảy ra lỗi, raise ValueError
+
+def extract_month_year(date_string):
+    parts = date_string.split('/')
+    if len(parts) == 2:
+        month = int(parts[0])
+        year = int(parts[1])
+        return month, year
+    else:
+        raise ValueError("Invalid date format. Expected MM/YYYY.")
+
+def GenerateExcelSheet(basedir,data_dictionary) -> None:
+        # Đóng kết nối hiện tại
+        connection.close()
+        # Mở kết nối mới với cơ sở dữ liệu khác (thay 'replica' bằng alias mong muốn)
+        new_db_connection = connections['fedatabase']
+        cursor = new_db_connection.cursor()
         # print("dictionary_data: ",data_dictionary)
-        sql_query='''select ee.id as employeeId,
-                            full_name as name,
-                            level,
-                            ee.team_id as teamId,
-                            et.name as teamName,
-                            type,
-                            oo.kr_id as krId,
-                            oo.key_result_department as krDep,
-                            oo.key_result_team as krTeam,
-                            oo.key_result_personal as krPer,
-                            ofo.formula_name as formulaName,
-                            ofo.formula_value as formulaValue,
-                            os.source_name as sourceName,
-                            oo.regularity,
-                            oo.unit,
-                            oo.condition,
-                            oo.norm,
-                            oo.weight,
-                            oo.result,
-                            oo.weight*oo.result as ratio,
-                            oo.estimated,
-                            oo.actual,
-                            oo.note
-                            FROM "Employee_employee" as ee,
-                                "Employee_team" as et,
-                                "OKR_okr" as oo,
-                                "OKR_formula" as ofo,
-                                "OKR_source" as os,
-                                "Employee_department" as ed
-                            where ee.team_id=et.team_id
-                                and ee.id=oo.user_id
-                                and oo.formula_id=ofo.id
-                                and oo.source_id=os.id
-                                
+        sql_query='''select 	emp.employee_code as employeeId,
+                                emp.full_name as name,
+                                lv.name as level,
+                                tm.id as teamId,
+                                tm.name as teamName,
+                                ok.type,
+                                ok.objective_name as krDep,
+                                ok.title as krTeam,
+                                ok.key_result_name as krPer,
+                                ok.formula as formulaName,
+                                ok.source as sourceName,
+                                ok.regularly,
+                                ok.unit,
+                                ok.condition,
+                                ok.norm,
+                                ok.weight,
+                                ok.result,
+                                ok.ratio,
+                                ok.estimate_time,
+                                ok.actual_time,
+                                ok.estimate_time_note,
+                                ok.note
+                                from "employees" as emp
+                                LEFT JOIN "employees_team_links" as etl ON emp.id=etl.employee_id 
+                                LEFT JOIN "teams" as tm ON etl.team_id=tm.id
+                                INNER JOIN "okr_kpis_employee_links" as okel ON emp.id=okel.employee_id 
+                                INNER JOIN "okr_kpis" as ok ON okel.okr_kpi_id=ok.id
+                                LEFT JOIN "employees_department_links" as edl ON emp.id=edl.employee_id
+                                LEFT JOIN "departments" as de ON edl.department_id=de.id
+                                LEFT JOIN "employees_level_links" as ell ON emp.id = ell.employee_id
+                                LEFT JOIN "levels" as lv ON ell.level_id = lv.id
+                                WHERE 1=1
                     '''
+        # print("month", type(data_dictionary.get("month")))
+        # print("year", type(data_dictionary.get("year")))
+        # print("department_id", type(data_dictionary.get("department_id")))
         # Kiểm tra và thêm điều kiện từ dictionary
-        if data_dictionary.get("quater")!='':
-            sql_query += " and oo.deadline_quarter = %(quater)s"
-        if data_dictionary.get("month")!='':
-            sql_query += " and oo.deadline_month = %(month)s"
-        if data_dictionary.get("year")!='':
-            sql_query += " and oo.deadline_year = %(year)s"
-        if data_dictionary.get("department_id")!='':
-            sql_query += " and ed.department_id = %(department_id)s"
-   
+        if data_dictionary.get("month") is not None:
+            sql_query += " and EXTRACT(MONTH FROM ok.created_at) = %(month)s"
+        if data_dictionary.get("year") is not None:
+            sql_query += " and EXTRACT(YEAR FROM ok.created_at) = %(year)s"
+        if data_dictionary.get("department_id") is not None:
+            sql_query += " and AND de.id = %(department_id)s"
+        # print("đay là data_dictionary: ", data_dictionary)
+        # print("đay là sql_query: ", sql_query)
         cursor.execute(sql_query, data_dictionary)
         result = cursor.fetchall()
         dataframe = pd.DataFrame(result)
-        # print("các column: ", dataframe)
+        print("các column: ", dataframe)
+        # đóng kết nối sau khi đã lấy được dữ liệu
+        new_db_connection.close()
+        cursor.close()
+        if dataframe.empty:
+            return ("Với các params được cung cấp không có dữ liệu nào được tìm thấy!")
+        else:
+            dataframe.columns = ['employeeId', 'Name', 'level', 'teamId', 'teamName',
+                            'Loại', 'krId', 'KR phòng', 'KR team', 'KR cá nhân', 'Công thức tính', 'Giá trị tính',
+                            'Nguồn dữ liệu', 'Định kỳ tính', 'Đơn vị tính', 'Điều kiện', 'Norm',
+                            '% Trọng số chỉ tiêu', 'Kết quả', 'Tỷ lệ', 'Tổng thời gian dự kiến/ ước tính công việc (giờ)',
+                                'Tổng thời gian thực hiện công việc thực tế (giờ)', 'Note']
 
-        dataframe.columns = ['employeeId', 'Name', 'level', 'teamId', 'teamName',
-                        'Loại', 'krId', 'KR phòng', 'KR team', 'KR cá nhân', 'Công thức tính', 'Giá trị tính',
-                        'Nguồn dữ liệu', 'Định kỳ tính', 'Đơn vị tính', 'Điều kiện', 'Norm',
-                        '% Trọng số chỉ tiêu', 'Kết quả', 'Tỷ lệ', 'Tổng thời gian dự kiến/ ước tính công việc (giờ)',
-                            'Tổng thời gian thực hiện công việc thực tế (giờ)', 'Note']
-
-        dataframe.sort_values('employeeId', inplace=True)
-        # dataframe.drop(columns=[ei], axis=1, inplace=True)
-        dataframe.drop(columns=['teamId'], axis=1, inplace=True)
-        dataframe.drop(columns=['Giá trị tính'], axis=1, inplace=True)
-        dataframe.replace("NUM", "%", inplace=True)
-        dataframe.replace("CAT", "Đạt/Không đạt", inplace=True)
-        dataframe.replace("MO", "Tháng", inplace=True)
-        dataframe.replace("QUAR", "Quý", inplace=True)
-        dataframe.replace("EQUAL", "=", inplace=True)
-        dataframe.fillna(0, inplace=True)
-        # dataframe.set_index(['id', 'full_name', 'department_name', 'team_name', 'type', 'okr_kpi_id', 'objective_name', 'type'], inplace=True)
-        for value, str in levels.items():
-            temp_df = dataframe.loc[dataframe['level'] == value]
-            temp_df.drop(columns=['level'], axis=1)
-            file_directory = basedir+f"\\nhóm {str}.xlsx"
-            if os.path.exists(file_directory):
-                os.remove(file_directory)
-            if not temp_df.empty:
-                temp_df.to_excel(file_directory)
-                formatKPIExcelSheet(file_directory)
+            dataframe.sort_values('employeeId', inplace=True)
+            # dataframe.drop(columns=[ei], axis=1, inplace=True)
+            dataframe.drop(columns=['teamId'], axis=1, inplace=True)
+            dataframe.drop(columns=['Giá trị tính'], axis=1, inplace=True)
+            dataframe.replace("NUM", "%", inplace=True)
+            dataframe.replace("CAT", "Đạt/Không đạt", inplace=True)
+            dataframe.replace("MO", "Tháng", inplace=True)
+            dataframe.replace("QUAR", "Quý", inplace=True)
+            dataframe.replace("EQUAL", "=", inplace=True)
+            dataframe.fillna(0, inplace=True)
+            # dataframe.set_index(['id', 'full_name', 'department_name', 'team_name', 'type', 'okr_kpi_id', 'objective_name', 'type'], inplace=True)
+            for value, str in levels.items():
+                temp_df = dataframe.loc[dataframe['level'] == value]
+                temp_df.drop(columns=['level'], axis=1)
+                file_directory = basedir+f"\\nhóm {str}.xlsx"
+                if os.path.exists(file_directory):
+                    os.remove(file_directory)
+                if not temp_df.empty:
+                    temp_df.to_excel(file_directory)
+                    formatKPIExcelSheet(file_directory)
                 
 
 
@@ -104,7 +136,8 @@ def excelToDataframe(file_path):
 
 
 def formatKPIExcelSheet(file_path) -> None:
-
+# xử lý dữ liệu với dataframe của pandas 
+# -----------------------------------------------------------------------------------------------------------
     # Tạo DataFrame từ dữ liệu
     df = excelToDataframe(file_path)
     # print("dataframe sorted_df: \n",df)
@@ -184,7 +217,7 @@ def formatKPIExcelSheet(file_path) -> None:
     sorted_df.drop(columns=[None], axis=1, inplace=True)
     sorted_df = sorted_df.apply(lambda x: '' if x.empty else x)
     need_add_index_df.set_index(need_add_index_df.index.map(map_new_index), inplace=True)
-    # print("đây là need_add_index_df mới : \n",need_add_index_df)
+
     # print("đây là sorted_df mới : \n",sorted_df)
 
     # 1. tạo ra các dataframe chứa tên, level, tên nhóm và dataframe chưa tên các cột  (user_df)
@@ -231,7 +264,9 @@ def formatKPIExcelSheet(file_path) -> None:
     column_name_rows = list(dataframe_to_rows(title_df, index=False, header=False))
     rows = dataframe_to_rows(insert_header_name_df, index=False, header=False)
 
-# ---------------------------------------------------------------------------------
+
+# format các trường dữ liệu với workbook của openpyxl
+# -----------------------------------------------------------------------------------------------------------
     # tạo một sheet excel mới
     workbook = Workbook()
     sheet = workbook.active
@@ -399,7 +434,7 @@ def formatKPIExcelSheet(file_path) -> None:
     workbook.close()
     workbook.save(file_path)
 
-def synthesizeExcelFilebySheet(listDirectory,targetDirectory,levels) -> None:
+def synthesizeExcelFilebySheet(listDirectory,targetDirectory) -> None:
 
     # Tạo một workbook mới để tổng hợp dữ liệu
     wb_combined = openpyxl.Workbook()
@@ -561,3 +596,36 @@ def synthesizeExcelFilebySheet(listDirectory,targetDirectory,levels) -> None:
 #     quarter_df.to_excel('quarter.xlsx')
 
 
+# select ee.id as employeeId,
+#                             full_name as name,
+#                             level,
+#                             ee.team_id as teamId,
+#                             et.name as teamName,
+#                             type,
+#                             oo.kr_id as krId,
+#                             oo.key_result_department as krDep,
+#                             oo.key_result_team as krTeam,
+#                             oo.key_result_personal as krPer,
+#                             ofo.formula_name as formulaName,
+#                             ofo.formula_value as formulaValue,
+#                             os.source_name as sourceName,
+#                             oo.regularity,
+#                             oo.unit,
+#                             oo.condition,
+#                             oo.norm,
+#                             oo.weight,
+#                             oo.result,
+#                             oo.weight*oo.result as ratio,
+#                             oo.estimated,
+#                             oo.actual,
+#                             oo.note
+#                             FROM "Employee_employee" as ee,
+#                                 "Employee_team" as et,
+#                                 "OKR_okr" as oo,
+#                                 "OKR_formula" as ofo,
+#                                 "OKR_source" as os,
+#                                 "Employee_department" as ed
+#                             where ee.team_id=et.team_id
+#                                 and ee.id=oo.user_id
+#                                 and oo.formula_id=ofo.id
+#                                 and oo.source_id=os.id
