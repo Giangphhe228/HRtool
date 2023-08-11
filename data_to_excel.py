@@ -11,24 +11,29 @@ from openpyxl.styles import PatternFill, Border, Side
 from openpyxl.utils import range_boundaries
 
 levels = {
-                1: 'L1',
-                2: 'L2',
-                3: 'L3',
+                2: 'L1',
+                3: 'L2',
+                4: 'L3',
                 # -1: 'NoLevel',
-                0: 'SVCNTS'
+                1: 'SVCNTS'
                 }
 def is_integer(input_str):
     try:
-        int(input_str)  # Thử chuyển chuỗi thành số nguyên
-        return True     # Nếu thành công, trả về True
+        return int(input_str.replace('"',''))  
     except ValueError:
         raise ValueError(f"'{input_str}' cannot be converted to an integer.")  # Nếu xảy ra lỗi, raise ValueError
+
+def is_valid_string(s):
+    if isinstance(s, str):
+        return True
+    else:
+        return False
 
 def extract_month_year(date_string):
     parts = date_string.split('/')
     if len(parts) == 2:
-        month = int(parts[0])
-        year = int(parts[1])
+        month = int(parts[0].replace('"',''))
+        year = int(parts[1].replace('"',''))
         return month, year
     else:
         raise ValueError("Invalid date format. Expected MM/YYYY.")
@@ -40,38 +45,44 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
         new_db_connection = connections['fedatabase']
         cursor = new_db_connection.cursor()
         # print("dictionary_data: ",data_dictionary)
-        sql_query='''select 	emp.employee_code as employeeId,
-                                emp.full_name as name,
-                                lv.name as level,
-                                tm.id as teamId,
-                                tm.name as teamName,
-                                ok.type,
-                                ok.id as krId,
-                                ok.objective_name as krDep,
-                                ok.title as krTeam,
-                                ok.key_result_name as krPer,
-                                ok.formula as formulaName,
-                                ok.source as sourceName,
-                                ok.regularly,
-                                ok.unit,
-                                ok.condition,
-                                ok.norm,
-                                ok.weight,
-                                ok.result,
-                                ok.ratio,
-                                ok.estimate_time,
-                                ok.actual_time,
-                                ok.estimate_time_note,
-                                ok.note
+        sql_query='''select 	        emp.employee_code as employeeId,
+                                        emp.full_name as name,
+                                        emp.email_address as email,
+                                        lv.name as level,
+                                        tm.id as teamId,
+                                        tm.name as teamName,
+                                        okr.id as krId,
+                                        okr.type,
+                                        okr.objective_name as krDep,
+                                        okr.title as krTeam,
+                                        okr.key_result_name as krPer,
+                                        okr.formula as formulaName,
+                                        okr.source as sourceName,
+                                        okr.regularly,
+                                        okr.unit,
+                                        okr.condition,
+                                        okr.norm,
+                                        okr.weight,
+                                        okr.result,
+                                        okr.ratio,
+                                        okr.estimate_time,
+                                        okr.actual_time,
+                                        okr.estimate_time_note,
+                                        okr.note,
+                                        okr.qa_Status,
+                                        pr.name,
+		                                pr.url 
                                 from "employees" as emp
                                 LEFT JOIN "employees_team_links" as etl ON emp.id=etl.employee_id 
                                 LEFT JOIN "teams" as tm ON etl.team_id=tm.id
                                 INNER JOIN "okr_kpis_employee_links" as okel ON emp.id=okel.employee_id 
-                                INNER JOIN "okr_kpis" as ok ON okel.okr_kpi_id=ok.id
+                                INNER JOIN "okr_kpis" as okr ON okel.okr_kpi_id=okr.id
                                 LEFT JOIN "employees_department_links" as edl ON emp.id=edl.employee_id
                                 LEFT JOIN "departments" as de ON edl.department_id=de.id
                                 LEFT JOIN "employees_level_links" as ell ON emp.id = ell.employee_id
                                 LEFT JOIN "levels" as lv ON ell.level_id = lv.id
+                                LEFT JOIN "proofs_okr_kpi_links" as pokl ON okr.id=pokl.okr_kpi_id
+                                LEFT JOIN "proofs" as pr ON pokl.proof_id=pr.id
                                 WHERE 1=1
                     '''
         # print("month", type(data_dictionary.get("month")))
@@ -79,49 +90,47 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
         # print("department_id", type(data_dictionary.get("department_id")))
         # Kiểm tra và thêm điều kiện từ dictionary
         if data_dictionary.get("month") is not None:
-            sql_query += " and EXTRACT(MONTH FROM ok.created_at) = %(month)s"
+            sql_query += " and EXTRACT(MONTH FROM okr.created_at) = %(month)s"
         if data_dictionary.get("year") is not None:
-            sql_query += " and EXTRACT(YEAR FROM ok.created_at) = %(year)s"
+            sql_query += " and EXTRACT(YEAR FROM okr.created_at) = %(year)s"
         if data_dictionary.get("department_id") is not None:
             sql_query += " and de.id = %(department_id)s"
         # print("đay là data_dictionary: ", data_dictionary)
-        # print("đay là sql_query: ", sql_query)
         cursor.execute(sql_query, data_dictionary)
         result = cursor.fetchall()
         dataframe = pd.DataFrame(result)
         # đóng kết nối sau khi đã lấy được dữ liệu
         new_db_connection.close()
         cursor.close()
-        if dataframe.empty:
-            return ("Với các params được cung cấp không có dữ liệu nào được tìm thấy!")
-        else:
-            dataframe.columns = ['employeeId', 'Name', 'level', 'teamId', 'teamName',
-                            'Loại', 'krId', 'KR phòng', 'KR team', 'KR cá nhân', 'Công thức tính',
+        dataframe.columns = ['employeeId', 'Name', 'email', 'level', 'teamId', 'teamName',
+                             'krId','Loại', 'KR phòng', 'KR team', 'KR cá nhân', 'Công thức tính',
                             'Nguồn dữ liệu', 'Định kỳ tính', 'Đơn vị tính', 'Điều kiện', 'Norm',
                             '% Trọng số chỉ tiêu', 'Kết quả', 'Tỷ lệ', 'Tổng thời gian dự kiến/ ước tính công việc (giờ)',
-                                'Tổng thời gian thực hiện công việc thực tế (giờ)', 'Note dự kiến',"Note bằng chứng thực tế"]
+                                'Tổng thời gian thực hiện công việc thực tế (giờ)', 'Note dự kiến','Note bằng chứng thực tế','QA','Bằng chứng','Link']
 
-            dataframe.sort_values('employeeId', inplace=True)
-            # dataframe.drop(columns=[ei], axis=1, inplace=True)
-            dataframe.drop(columns=['teamId'], axis=1, inplace=True)
+        dataframe.sort_values('employeeId', inplace=True)
+        dataframe.drop(columns=['krId'], axis=1, inplace=True)
+        dataframe.drop(columns=['teamId'], axis=1, inplace=True)
             # dataframe.replace("NUM", "%", inplace=True)
             # dataframe.replace("CAT", "Đạt/Không đạt", inplace=True)
-            # dataframe.replace("MO", "Tháng", inplace=True)
+        dataframe.replace("month", "Tháng", inplace=True)
             # dataframe.replace("QUAR", "Quý", inplace=True)
             # dataframe.replace("EQUAL", "=", inplace=True)
-            # dataframe.fillna(0, inplace=True)
+        # dataframe.fillna(0, inplace=True)
             # print("đay là dataframe: ", dataframe)
             # dataframe.set_index(['id', 'full_name', 'department_name', 'team_name', 'type', 'okr_kpi_id', 'objective_name', 'type'], inplace=True)
-            for value, str in levels.items():
-                temp_df = dataframe.loc[dataframe['level'] == value]
-                temp_df.drop(columns=['level'], axis=1)
-                file_directory = basedir+f"\\nhóm {str}.xlsx"
-                if os.path.exists(file_directory):
+        for value, str in levels.items():
+            temp_df = dataframe.loc[dataframe['level'] == str]
+            if temp_df.empty:
+                    raise ValueError("một trường quan trọng đang ko có đầu vào dẫn đến trả về dataframe trống không thể convert sang excel(level,department_id,deadline...)")
+            # temp_df.drop(columns=['level'], axis=1)
+            file_name=f"\\nhóm {str}.xlsx"
+            file_directory = basedir+file_name
+            if os.path.exists(file_directory):
                     os.remove(file_directory)
-                if not temp_df.empty:
-                    temp_df.to_excel(file_directory)
-                    formatKPIExcelSheet(file_directory)
-                
+            # print("đây là temp_df:\n",temp_df)
+            temp_df.to_excel(file_directory)
+            formatKPIExcelSheet(file_directory,str)
 
 
 def excelToDataframe(file_path):
@@ -135,7 +144,7 @@ def excelToDataframe(file_path):
     return df
 
 
-def formatKPIExcelSheet(file_path) -> None:
+def formatKPIExcelSheet(file_path,level) -> None:
 # xử lý dữ liệu với dataframe của pandas 
 # -----------------------------------------------------------------------------------------------------------
     # Tạo DataFrame từ dữ liệu
@@ -147,12 +156,17 @@ def formatKPIExcelSheet(file_path) -> None:
     krc = 'KR cá nhân'
     ctt = 'Công thức tính'
     ei = 'employeeId'
-    ki = 'krId'
+    email = 'email'
+    # trường đang dùng để mapping các kpi với nhau
     type = 'Loại'
     name = 'Name'
     lv = 'level'
     tn = 'teamName'
     note = 'Note dự kiến'
+    noteproof = 'Note bằng chứng thực tế'
+    QA = 'QA'
+    proofStr = 'Bằng chứng'
+    proofURL ='Link'
     tsct = '% Trọng số chỉ tiêu'
     kq = 'Kết quả'
     tl = 'Tỷ lệ'
@@ -163,15 +177,23 @@ def formatKPIExcelSheet(file_path) -> None:
     df[tl] = df[tl].astype(float)
     df[et] = df[et].astype(float)
     df[rt] = df[rt].astype(float)
+    df[email] = df[email].apply(lambda x: x.split('@')[0] if x is not None else x)
+    df[QA] = df[QA].apply(lambda x: 'OK' if x is True else ('NOT OK' if x is False else 'Trống'))
+    df[ei] = df[ei].apply(lambda x: '' if x == None else x)
+    df[proofStr].fillna('', inplace=True)
+    df[proofStr].fillna('', inplace=True)
+    df[proofStr] = df[proofStr].apply(lambda x: '' if x == None else x)
+    df[proofURL] = df[proofURL].apply(lambda x: '' if x == None else x)
+    df[type] = df[type].apply(lambda x: '' if x == None else x)
     # tính tổng các trường cần tính
-    tsct_sum = df.groupby([ei, ki])[tsct].sum().reset_index()
-    kq_sum = df.groupby([ei, ki])[kq].sum().reset_index()
-    tl_sum = df.groupby([ei, ki])[tl].sum().reset_index()
+    tsct_sum = df.groupby([ei, type])[tsct].sum().reset_index()
+    kq_sum = df.groupby([ei, type])[kq].sum().reset_index()
+    tl_sum = df.groupby([ei, type])[tl].sum().reset_index()
     et_sum = df.groupby([ei])[et].sum().reset_index()
     rt_sum = df.groupby([ei])[rt].sum().reset_index()
     # Tạo DataFrame chứa các tổng
     df_data_sum = pd.DataFrame({ei: tsct_sum[ei],
-                           ki: tsct_sum[ki],
+                           type: tsct_sum[type],
                            tsct: tsct_sum[tsct],
                            kq: kq_sum[kq],
                            tl: tl_sum[tl]})
@@ -180,12 +202,16 @@ def formatKPIExcelSheet(file_path) -> None:
                            rt: rt_sum[rt]})
 
     # merge các tổng đã tính ở trên vào một hàng và tìm vị trị cần điền các tổng đó trong dataframe gốc
-    max_indices = df_data_sum.groupby(ei)[ki].idxmax()
+    index_df_data_sum = df_data_sum[[ei, type]]
+    # Tạo một cột boolean cho biết các hàng có là bản sao của hàng trước đó hay không
+    is_duplicated = index_df_data_sum.duplicated(subset=[ei, type], keep='last')
+    # Chỉ giữ lại các hàng cuối cùng của mỗi cặp giá trị bằng nhau
+    max_indices = index_df_data_sum[~is_duplicated]
+    # print("đây là max_indices: \n",max_indices)
     merged_sum_idx_df = pd.merge(
         max_indices, df_time_sum, on=ei, how='left')
     merged_sum_idx_df.drop(columns=[ei], axis=1, inplace=True)
-    krId_to_idx = merged_sum_idx_df.set_index(ki)
-    merged_sum_df = pd.merge(df_data_sum, krId_to_idx,
+    merged_sum_df = pd.merge(df_data_sum, merged_sum_idx_df,
                              left_index=True, right_index=True, how='left')
     merged_sum_df.fillna(0, inplace=True)
     merged_sum_df[et] = merged_sum_df[et].apply(lambda x: '' if x == 0 else x)
@@ -193,13 +219,13 @@ def formatKPIExcelSheet(file_path) -> None:
     # print("đây là merged_sum_df: \n",merged_sum_df)
 
     # sắp xếp lại và lấy vị trí các đoạn cần insert các tổng vào (need_add_index_df), đồng thời dùng sorted_df cho các thao tác sau (sorted_df)
-    sorted_df = df.sort_values(by=[ei, ki], ascending=[
+    sorted_df = df.sort_values(by=[ei, type], ascending=[
                                True, True]).reset_index()
     sorted_df.drop(columns=['index'], axis=1, inplace=True)
     # print("dataframe sorted_df: \n",sorted_df)
-    index_sorted_df = sorted_df[[ei, ki]]
+    index_sorted_df = sorted_df[[ei, type]]
     # Tạo một cột boolean cho biết các hàng có là bản sao của hàng trước đó hay không
-    is_duplicated = index_sorted_df.duplicated(subset=[ei, ki], keep='last')
+    is_duplicated = index_sorted_df.duplicated(subset=[ei, type], keep='last')
     # Chỉ giữ lại các hàng cuối cùng của mỗi cặp giá trị bằng nhau
     need_add_index_df = index_sorted_df[~is_duplicated]
     # print("đây là need_add_index_df : \n",need_add_index_df)
@@ -216,19 +242,26 @@ def formatKPIExcelSheet(file_path) -> None:
             added_row += 1
     sorted_df.drop(columns=[None], axis=1, inplace=True)
     sorted_df = sorted_df.apply(lambda x: '' if x.empty else x)
+    sorted_df.drop(columns=[type+"_x"], axis=1, inplace=True)
+    sorted_df.drop(columns=[type+"_y"], axis=1, inplace=True)
+    # thay đổi thành rỗng để có thể groupby phía sau
+    sorted_df[tn] = sorted_df[tn].apply(lambda x: '' if x == None else x)
     need_add_index_df.set_index(need_add_index_df.index.map(map_new_index), inplace=True)
 
     # print("đây là sorted_df mới : \n",sorted_df)
+    # print("đây là sorted_df mới : \n",sorted_df[[name,tn]])
 
     # 1. tạo ra các dataframe chứa tên, level, tên nhóm và dataframe chưa tên các cột  (user_df)
-    grouped = sorted_df.groupby([ei, name, lv, tn])
+    grouped = sorted_df.groupby([ei, name,email, lv, tn])
     user_df = grouped.size().reset_index(name='Count')
     user_df.insert(0, 'Index', user_df.index+1)
     user_df.drop(columns=['Count'], axis=1, inplace=True)
+    # bỏ cột id trong giao diện
+    user_df.drop(columns=[ei], axis=1, inplace=True)
     # print("đây là user_df : \n",user_df)
 
     # Create a new DataFrame to store the column names (title_df)'
-    columns_to_drop = [ei, name, lv, tn, ki]
+    columns_to_drop = [ei, name,email, lv, tn]
     insert_header_name_df = sorted_df.drop(columns=columns_to_drop, axis=1)
     title_df = pd.DataFrame([insert_header_name_df.columns],
                             columns=insert_header_name_df.columns)
@@ -242,7 +275,7 @@ def formatKPIExcelSheet(file_path) -> None:
         columns='FirstOccurrence')
     firstOccurrence_list = firstOccurrence_df.index
     sorted_df = sorted_df.drop(columns='FirstOccurrence', axis=1)
-    
+    # print("đây là firstOccurrence_list : \n",firstOccurrence_list)
     # 3. dùng openpyxl thêm các header vào các vị trí(2.) là:
     #                                      - các record(1.)
     #                                      - các record tên cột(1.)
@@ -253,7 +286,7 @@ def formatKPIExcelSheet(file_path) -> None:
     if len(user_rows) != len(firstOccurrence_list):
         raise ValueError("Số lượng dòng cần thêm phải bằng số dự liệu muốn thêm!")
     
-    # tạo ra 1 dataframe có 3 hàng là tên các cột cần add vào sheet
+    # tạo ra 1 dataframe có nhiều hàng là tên các cột cần add vào sheet
     for i in range(len(user_rows)):
          title_df = pd.concat([title_df, title_df], ignore_index=True)
 
@@ -271,17 +304,9 @@ def formatKPIExcelSheet(file_path) -> None:
     workbook = Workbook()
     sheet = workbook.active
     # Ghi dữ liệu từ DataFrame vào Workbook
-    try:
-        level = sorted_df[lv][0].astype(int).astype(str)
-    except ValueError:
-        print("Level đang không là số!")
-        level = sorted_df[lv][0].astype(str)
     # Gán tiêu đề cho sheet
     Header_font = Font(name='Arial',size=16, bold=True)
-    if(level==0):
-        header_text="nhóm SVCNTS"
-    else:
-        header_text=f"nhóm L{level}"
+    header_text=f"nhóm {level}"
     sheet.cell(row=1, column=1, value=header_text).font = Header_font
     # Merge các ô trong dòng đầu tiên
     sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=title_df.shape[1])
@@ -311,7 +336,7 @@ def formatKPIExcelSheet(file_path) -> None:
     # column_positions_dark_green_fill = [title_df.columns.get_loc(col_name) for col_name in column_dark_green_fill]
 
     # lấy vị trí các column cần đổi màu xanh da trời nhạt
-    column_light_blue_fill = [rt]
+    column_light_blue_fill = [rt,type]
     column_positions_light_blue_fill = [title_df.columns.get_loc(col_name) for col_name in column_light_blue_fill]
 
     for row_sum_index in need_add_index_df.index:
@@ -354,13 +379,12 @@ def formatKPIExcelSheet(file_path) -> None:
     # Biến trạng thái
     merging = False
     merge_start = None
-
     # lấy vị trí cột loại để merge các cell 
     merge_column_position = title_df.columns.get_loc(type)
 
     # Duyệt qua các dòng trong cột "loại"
     for row_index, row in enumerate(sheet.iter_rows(min_col=merge_column_position, max_col=merge_column_position, values_only=True), start=1):
-        if row[0] =='KPI' or row[0]=='OKR':
+        if row[0] =='kpi' or row[0]=='okr':
             if not merging:
                 merging = True
                 merge_start = row_index
@@ -368,6 +392,36 @@ def formatKPIExcelSheet(file_path) -> None:
             if merging:
                 merging = False
                 sheet.merge_cells(start_row=merge_start, start_column=1, end_row=row_index - 1, end_column=1)
+
+    # Đọc nội dung của sheet thành DataFrame
+    data = sheet.values
+    columns = next(data)  # Lấy tên cột từ dòng đầu tiên
+    check_df = pd.DataFrame(data, columns=columns)  
+    # print("đây là check_df : \n",check_df)
+
+    # lấy vị trí column link bằng chứng
+    note_proof_column = [noteproof,proofStr,proofURL]
+    note_proof_column_position = [title_df.columns.get_loc(col_name) for col_name in note_proof_column]
+    print("đây là note_proof_column_position : \n",note_proof_column_position[1])
+    
+
+    # Lặp qua từng hàng trong sheet
+    for row in sheet.iter_rows(min_row=4, values_only=True):
+        
+        text = row[note_proof_column_position[1]]  # Giảm đi 1 vì index bắt đầu từ 0
+        print("đây là text : \n",text)
+        url = row[note_proof_column_position[2]]    # Giảm đi 1 vì index bắt đầu từ 0
+        print("đây là url : \n",url)
+        if text!= proofStr and url!=proofURL and is_valid_string(text) and is_valid_string(url):
+            # Gán URL cho văn bản
+            cell = sheet.cell(row=sheet.max_row + 1, column=note_proof_column_position[0])
+            print("đây là cell : \n",cell.value)
+            cell.value = text
+            cell.hyperlink = url
+    
+    # Xóa cột dựa trên vị trí
+    sheet.delete_cols(note_proof_column_position[1]+1, note_proof_column_position[2]+1)
+
 
     # Thiết lập tự động tăng kích thước các cột
     # for col in sheet.columns:
@@ -407,7 +461,7 @@ def formatKPIExcelSheet(file_path) -> None:
     # column_widths = {'KR phòng': 20, 'KR team': 20, 'KR cá nhân': 20, 'Note': 20}  
 
     # lấy vị trí các cột cần mở rộng khi align bằng openpyxl
-    column_names_30 = [krp, krt, krc, ctt, note]
+    column_names_30 = [krp, krt, krc, ctt, note,noteproof,QA]
     column_positions_30 = [title_df.columns.get_loc(col_name) for col_name in column_names_30]
 
     column_names_20 = [ type, et, rt]
@@ -439,18 +493,14 @@ def synthesizeExcelFilebySheet(listDirectory,targetDirectory) -> None:
     # Tạo một workbook mới để tổng hợp dữ liệu
     wb_combined = openpyxl.Workbook()
     # Lặp qua từng file Excel gốc
-    for file_name,level in zip(listDirectory,levels):
+    for file_name in listDirectory:
         # Mở file Excel gốc
         wb_original = openpyxl.load_workbook(file_name)
         # Chọn sheet trong file Excel gốc 
         sheet_original = wb_original.active 
-        for level in levels:
+        for value,levelstr in levels.items():
             # Tạo một sheet mới trong workbook tổng hợp có title phù hợp với level của nhân viên trong sheet
-            title=''
-            if(level==0):
-                title="nhóm SVCNTS"
-            else:
-                title=f"nhóm L{level}"
+            title=f"nhóm {levelstr}"
             if title in file_name:   
                 sheet_combined = wb_combined.create_sheet(title)
             else:
@@ -527,7 +577,7 @@ def synthesizeExcelFilebySheet(listDirectory,targetDirectory) -> None:
     wb_combined.save(targetDirectory)
 
 
-# formatKPIExcelSheet("excelSheet/nhóm L2.xlsx")
+# formatKPIExcelSheet("excelSheet/nhóm L1.xlsx","L1")
 
 
 # def department() -> None:

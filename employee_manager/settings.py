@@ -101,7 +101,7 @@ DATABASES = {
     },
     'fedatabase': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'employee-python',
+        'NAME': 'employee-python-v2',
         'USER': 'postgres',
         'PASSWORD': 'postgres',
         'HOST': '172.27.228.144',

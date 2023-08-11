@@ -261,14 +261,14 @@ class ExcelView(APIView):
         serializer = self.serializer_class(data=request.data)
         # serializer.is_valid(raise_exception=True)
         data_dictionary={}
-        deadline = request.data.get('deadline')
-        department_id = request.data.get('department_id') 
-        try:
-            data_to_excel.is_integer(department_id)
-            data_dictionary['department_id'] = department_id
-        except ValueError as e:
-            print(e)
-        month, year = data_to_excel.extract_month_year(deadline)
+        deadline = request.GET.get('deadline')
+        department_id = request.GET.get('department_id') 
+        if department_id is not None:
+            data_dictionary['department_id'] = data_to_excel.is_integer(department_id)
+        month=None  
+        year=None      
+        if deadline is not None:
+            month, year = data_to_excel.extract_month_year(deadline)
         data_dictionary['month'] = month
         data_dictionary['year'] = year
 
@@ -281,18 +281,19 @@ class ExcelView(APIView):
         output_excel = basedir+'\outputExcel\KPI.xlsx'
         if os.path.exists(output_excel):
             os.remove(output_excel)
-
+        # tạo ra các file excel là tác ra theo các level nhân viên
         result=data_to_excel.GenerateExcelSheet(excel_sheet,data_dictionary)
         if result is False:
             print(result)
             return Response({'message': 'query success but no output data'}, status=status.HTTP_200_OK)
-        #List all excel files in folder
         else:
+            #List all excel files in folder
             excel_folder = excel_sheet
             excel_files = [os.path.join(root, file) for root, folder, files in os.walk(excel_folder) for file in files if file.endswith(".xlsx")]
+            # tổng hợp các file excel đã được format thành các sheet trong một file(làm thế này đễ dễ format các chỉ số định dạng của từng sheet)
             data_to_excel.synthesizeExcelFilebySheet(excel_files,output_excel)
 
-            # tạo workbook lưu trữ excel và response để trả về các file excel
+            # tạo workbook lưu trữ excel và response để trả về file excel
             wb_obj = openpyxl.load_workbook(output_excel)
             if os.path.exists(output_excel):
                 response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',status=status.HTTP_200_OK)
