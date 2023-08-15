@@ -9,6 +9,7 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import Alignment
 from openpyxl.styles import PatternFill, Border, Side
 from openpyxl.utils import range_boundaries
+from urllib.parse import urlparse
 
 levels = {
                 2: 'L1',
@@ -28,6 +29,8 @@ def is_valid_string(s):
         return True
     else:
         return False
+    
+# print(is_valid_string("https://www.google.com/"))
 
 def extract_month_year(date_string):
     parts = date_string.split('/')
@@ -402,22 +405,24 @@ def formatKPIExcelSheet(file_path,level) -> None:
     # lấy vị trí column link bằng chứng
     note_proof_column = [noteproof,proofStr,proofURL]
     note_proof_column_position = [title_df.columns.get_loc(col_name) for col_name in note_proof_column]
-    print("đây là note_proof_column_position : \n",note_proof_column_position[1])
+    
     
 
     # Lặp qua từng hàng trong sheet
+    # print("đây là level : \n",level)
+    row_index = 0
+    
     for row in sheet.iter_rows(min_row=4, values_only=True):
-        
-        text = row[note_proof_column_position[1]]  # Giảm đi 1 vì index bắt đầu từ 0
-        print("đây là text : \n",text)
-        url = row[note_proof_column_position[2]]    # Giảm đi 1 vì index bắt đầu từ 0
-        print("đây là url : \n",url)
-        if text!= proofStr and url!=proofURL and is_valid_string(text) and is_valid_string(url):
-            # Gán URL cho văn bản
-            cell = sheet.cell(row=sheet.max_row + 1, column=note_proof_column_position[0])
-            print("đây là cell : \n",cell.value)
-            cell.value = text
-            cell.hyperlink = url
+        text = row[note_proof_column_position[1]]  
+        url = row[note_proof_column_position[2]]   
+        row_index += 1 
+        if is_valid_string(url):      
+            if url not in proofURL:
+                # Tăng biến chỉ số hàng 
+                cell = sheet.cell(row=row_index + 3, column=note_proof_column_position[0]+1, value=text)
+                # cell.value = text
+                # Gán URL cho văn bản
+                cell.hyperlink = url
     
     # Xóa cột dựa trên vị trí
     sheet.delete_cols(note_proof_column_position[1]+1, note_proof_column_position[2]+1)
@@ -542,6 +547,8 @@ def synthesizeExcelFilebySheet(listDirectory,targetDirectory) -> None:
                     shrink_to_fit=cell.alignment.shrink_to_fit,
                     indent=cell.alignment.indent
                 )
+
+                new_cell.hyperlink = cell.hyperlink
 
         # Sao chép độ rộng cột từ sheet gốc sang sheet tổng hợp
         for col in sheet_original.column_dimensions:
