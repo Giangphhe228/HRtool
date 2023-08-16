@@ -322,25 +322,31 @@ def formatKPIExcelSheet(file_path,level) -> None:
             sheet.cell(row=r_idx, column=c_idx, value=value).font = data_font
 
     # thêm các dòng thông tin người dung và title của các trường vào sheet, đồng thời thêm màu, sửa font
-    light_blue_fill = PatternFill(start_color='B8CCE4', end_color='B8CCE4', fill_type='solid')
-    dark_blue_fill = PatternFill(start_color='365072', end_color='365072', fill_type='solid')
+    # light_blue_fill = PatternFill(start_color='B8CCE4', end_color='B8CCE4', fill_type='solid')
+    light_blue_fill = PatternFill(start_color='CCE0FF', end_color='CCE0FF', fill_type='solid')
+    alittler_dark_blue_fill = PatternFill(start_color='9FC9E7', end_color='9FC9E7', fill_type='solid')
+    dark_blue_fill = PatternFill(start_color='6699CC', end_color='6699CC', fill_type='solid')
     light_yellow_fill = PatternFill(start_color='FFFF99', end_color='FFFF99', fill_type='solid')
-    light_green_fill = PatternFill(start_color='A4C639', end_color='A4C639', fill_type='solid')
-    dark_green_fill = PatternFill(start_color="008000", end_color="008000", fill_type="solid")
+    light_green_fill = PatternFill(start_color='B0E57C', end_color='B0E57C', fill_type='solid')
+    dark_green_fill = PatternFill(start_color='008000', end_color='008000', fill_type='solid')
     user_title_font = Font(name='Arial',size=11, bold=True,color="FF0000")
     title_font = Font(name='Arial',size=11, bold=True,color="FFFFFF")
     
     # lấy vị trí các column cần đổi màu xanh lá cây nhạt
     column_light_green_fill = [tsct, kq, tl, et, note]
-    column_positions_light_green_fill = [title_df.columns.get_loc(col_name) for col_name in column_light_green_fill]
+    column_positions_light_green_fill = [title_df.columns.get_loc(col_name)+1 for col_name in column_light_green_fill]
+
+    # lấy vị trí các column cần đổi màu xanh lá cây đậm
+    column_dark_green_fill = [QA]
+    column_positions_dark_green_fill = [title_df.columns.get_loc(col_name)+1 for col_name in column_dark_green_fill]
 
     # # lấy vị trí các column cần đổi màu xanh lá cây đậm
     # column_dark_green_fill = [tsct, 'KR team', 'KR cá nhân', 'Công thức tính', note]
     # column_positions_dark_green_fill = [title_df.columns.get_loc(col_name) for col_name in column_dark_green_fill]
 
     # lấy vị trí các column cần đổi màu xanh da trời nhạt
-    column_light_blue_fill = [rt,type]
-    column_positions_light_blue_fill = [title_df.columns.get_loc(col_name) for col_name in column_light_blue_fill]
+    column_light_blue_fill = [type,rt,noteproof]
+    column_positions_light_blue_fill = [title_df.columns.get_loc(col_name)+1 for col_name in column_light_blue_fill]
 
     for row_sum_index in need_add_index_df.index:
         for col_sum_index in sum_column_positions:
@@ -365,12 +371,21 @@ def formatKPIExcelSheet(file_path,level) -> None:
             sheet.cell(row=title_insert, column=col_idx, value=column_name_value)
             sheet.cell(row=title_insert, column=col_idx).fill = dark_blue_fill
             sheet.cell(row=title_insert, column=col_idx).font = title_font
+            
             for green_index in column_positions_light_green_fill:
                 if green_index==col_idx:
+                    # print("vị trí xanh lá cây:",green_index)
                     sheet.cell(row=title_insert, column=green_index).fill = light_green_fill
+
+            for dark_green_index in column_positions_dark_green_fill:
+                if dark_green_index==col_idx:
+                    # print("vị trí xanh lá cây đậm:",dark_green_index)
+                    sheet.cell(row=title_insert, column=dark_green_index).fill = dark_green_fill
+
             for blue_index in column_positions_light_blue_fill:
                 if blue_index==col_idx:
-                    sheet.cell(row=title_insert, column=blue_index).fill = light_blue_fill
+                    # print("vị trí xanh da trời nhạt:",blue_index)
+                    sheet.cell(row=title_insert, column=blue_index).fill = alittler_dark_blue_fill
 
         if(insert_index!=0):
              blank_insert = insert_index+added_sheet_row+2
