@@ -26,11 +26,12 @@ from Employee import serializers as employee_serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.sessions.backends.db import SessionStore
 
+import gzip
 import pandas as pd
 import pandas as pd
 import os
 import openpyxl
-import data_to_excel
+import utils.data_to_excel as data_to_excel
 
 # Create your views here.
 
@@ -295,8 +296,9 @@ class ExcelView(APIView):
 
             # tạo workbook lưu trữ excel và response để trả về file excel
             wb_obj = openpyxl.load_workbook(output_excel)
-            if os.path.exists(output_excel):
+            if os.path.exists(output_excel):   
                 response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',status=status.HTTP_200_OK)
+                # response['Content-Encoding'] = 'gzip'
                 response['Content-Disposition'] = 'attachment; filename=kpi.xlsx'
             wb_obj.save(response)
             return response

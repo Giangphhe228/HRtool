@@ -60,6 +60,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django.middleware.gzip.GZipMiddleware',
 ]
 
 ROOT_URLCONF = 'employee_manager.urls'
@@ -93,11 +94,11 @@ DATABASES = {
     # }
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'okr',
+        'NAME': 'toolnsPython',
         'USER': 'postgres',
-        'PASSWORD': 'password',
-        'host': 'localhost',
-        'PORT': '5432',
+        'PASSWORD': 'postgres',
+        'HOST': '172.27.228.144',
+        'PORT': '5433',
     },
     'fedatabase': {
         'ENGINE': 'django.db.backends.postgresql',

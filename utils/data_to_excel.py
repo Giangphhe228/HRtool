@@ -18,6 +18,29 @@ levels = {
                 # -1: 'NoLevel',
                 1: 'SVCNTS'
                 }
+# tạo biến tên cho các trường trong dataframe để sử dụng sau
+krp = 'KR phòng'
+krt = 'KR team'
+krc = 'KR cá nhân'
+ctt = 'Công thức tính'
+ei = 'employeeId'
+email = 'email'
+# trường đang dùng để mapping các kpi với nhau
+type = 'Loại'
+name = 'Name'
+lv = 'level'
+tn = 'teamName'
+note = 'Note dự kiến'
+noteproof = 'Note bằng chứng thực tế'
+QA = 'QA'
+proofStr = 'Bằng chứng'
+proofURL ='Link'
+tsct = '% Trọng số chỉ tiêu'
+kq = 'Kết quả'
+tl = 'Tỷ lệ'
+et = 'Tổng thời gian dự kiến/ ước tính công việc (giờ)'
+rt = 'Tổng thời gian thực hiện công việc thực tế (giờ)'
+
 def is_integer(input_str):
     try:
         return int(input_str.replace('"',''))  
@@ -47,7 +70,6 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
         # Mở kết nối mới với cơ sở dữ liệu khác (thay 'replica' bằng alias mong muốn)
         new_db_connection = connections['fedatabase']
         cursor = new_db_connection.cursor()
-        # print("dictionary_data: ",data_dictionary)
         sql_query='''select 	        emp.employee_code as employeeId,
                                         emp.full_name as name,
                                         emp.email_address as email,
@@ -111,17 +133,13 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
                             '% Trọng số chỉ tiêu', 'Kết quả', 'Tỷ lệ', 'Tổng thời gian dự kiến/ ước tính công việc (giờ)',
                                 'Tổng thời gian thực hiện công việc thực tế (giờ)', 'Note dự kiến','Note bằng chứng thực tế','QA','Bằng chứng','Link']
 
-        dataframe.sort_values('employeeId', inplace=True)
+        dataframe.sort_values( ei, inplace=True)
         dataframe.drop(columns=['krId'], axis=1, inplace=True)
         dataframe.drop(columns=['teamId'], axis=1, inplace=True)
-            # dataframe.replace("NUM", "%", inplace=True)
-            # dataframe.replace("CAT", "Đạt/Không đạt", inplace=True)
+        # dataframe.replace("NUM", "%", inplace=True)
+        # dataframe.replace("CAT", "Đạt/Không đạt", inplace=True)
         dataframe.replace("month", "Tháng", inplace=True)
-            # dataframe.replace("QUAR", "Quý", inplace=True)
-            # dataframe.replace("EQUAL", "=", inplace=True)
         # dataframe.fillna(0, inplace=True)
-            # print("đay là dataframe: ", dataframe)
-            # dataframe.set_index(['id', 'full_name', 'department_name', 'team_name', 'type', 'okr_kpi_id', 'objective_name', 'type'], inplace=True)
         for value, str in levels.items():
             temp_df = dataframe.loc[dataframe['level'] == str]
             if temp_df.empty:
@@ -135,7 +153,6 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
             temp_df.to_excel(file_directory)
             formatKPIExcelSheet(file_directory,str)
 
-
 def excelToDataframe(file_path):
     wb = load_workbook(file_path)
     sheet = wb.active
@@ -146,35 +163,12 @@ def excelToDataframe(file_path):
     wb.close()
     return df
 
-
+# format ra file kpi có các sheet kpi input là path các file excel
 def formatKPIExcelSheet(file_path,level) -> None:
 # xử lý dữ liệu với dataframe của pandas 
 # -----------------------------------------------------------------------------------------------------------
     # Tạo DataFrame từ dữ liệu
     df = excelToDataframe(file_path)
-    # print("dataframe sorted_df: \n",df)
-    # tạo biến tên cho các trường trong dataframe để sử dụng sau
-    krp = 'KR phòng'
-    krt = 'KR team'
-    krc = 'KR cá nhân'
-    ctt = 'Công thức tính'
-    ei = 'employeeId'
-    email = 'email'
-    # trường đang dùng để mapping các kpi với nhau
-    type = 'Loại'
-    name = 'Name'
-    lv = 'level'
-    tn = 'teamName'
-    note = 'Note dự kiến'
-    noteproof = 'Note bằng chứng thực tế'
-    QA = 'QA'
-    proofStr = 'Bằng chứng'
-    proofURL ='Link'
-    tsct = '% Trọng số chỉ tiêu'
-    kq = 'Kết quả'
-    tl = 'Tỷ lệ'
-    et = 'Tổng thời gian dự kiến/ ước tính công việc (giờ)'
-    rt = 'Tổng thời gian thực hiện công việc thực tế (giờ)'
     df[tsct] = df[tsct].astype(int)
     df[kq] = df[kq].astype(float)
     df[tl] = df[tl].astype(float)
@@ -598,36 +592,18 @@ def synthesizeExcelFilebySheet(listDirectory,targetDirectory) -> None:
     # Lưu workbook tổng hợp lại vào một file mới
     wb_combined.save(targetDirectory)
 
+# def formatResultExcelSheet(dataframe) -> None:
+#     result_sheet_df=dataframe[[ei, name, lv, "teamId", tn, kq, tl, et, rt]]
+#     result_sheet_df[kq] = result_sheet_df[kq].astype(float)
+#     result_sheet_df[tl] = result_sheet_df[tl].astype(float)
+#     result_sheet_df[et] = result_sheet_df[et].astype(float)
+#     result_sheet_df[rt] = result_sheet_df[rt].astype(float)
+#     kq_sum = df.groupby([ei, type])[kq].sum().reset_index()
+#     tl_sum = df.groupby([ei, type])[tl].sum().reset_index()
+#     et_sum = df.groupby([ei])[et].sum().reset_index()
+#     rt_sum = df.groupby([ei])[rt].sum().reset_index()
 
-# formatKPIExcelSheet("excelSheet/nhóm L1.xlsx","L1")
 
-
-# def department() -> None:
-#     column_order = ['okr_kpi_id', 'full_name', 'department_name', 'type',
-#                     'objective_name', 'kr_phong', 'kr_team', 'kr_personal', 'unit',
-#                     'condition', 'norm', 'weight', 'ratio',  'result', 'status', 'deadline'] 
-
-#     department_df = full_df[column_order]
-#     department_df['deadline'] = department_df['deadline'].dt.tz_localize(None)
-
-#     def do_nothing(x):
-#         return x
-
-#     # department_df.set_index(['department_name', 'type'], inplace=True)
-#     # print(department_df)
-#     department_df = department_df.fillna('No data')
-#     # department_df = department_df.groupby(['department_name', 'type', 'okr_kpi_id', 'objective_name', 'weight']).agg({
-#     #     'full_name': do_nothing, # lambda x: ', '.join(x),
-#     #     'kr_phong': do_nothing,
-#     #     'kr_team': do_nothing,
-#     #     'unit': do_nothing,
-#     #     'condition': do_nothing,
-#     #     'norm': do_nothing,
-#     #     'weight': do_nothing,
-#     #     'ratio': do_nothing,
-#     #     'result': do_nothing,
-#     #     'deadline': do_nothing,
-#     # })
 #     department_df = department_df.set_index(['department_name', 'type', 'okr_kpi_id', 'objective_name', 'kr_phong', 'kr_team'])
         # dataframe.rename(columns={"0": "employeeId"}, inplace=True)
         # dataframe.rename(columns={"1": "fullName"}, inplace=True)
@@ -651,11 +627,8 @@ def synthesizeExcelFilebySheet(listDirectory,targetDirectory) -> None:
         # dataframe.rename(columns={"19": "Tổng thời gian thực hiện công việc thực tế (giờ)"}, inplace=True)
         # dataframe.rename(columns={"20": "Note"}, inplace=True)
 
-#     department_df.to_excel('department.xlsx')
 
 # def okr_quarter() -> None:
-
-    
 
 #     quarter_df = full_df.loc[full_df['type'] == 'okr']
 #     quarter_df['deadline'] = quarter_df['deadline'].dt.tz_localize(None)
