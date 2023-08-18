@@ -297,6 +297,9 @@ class ExcelView(APIView):
         if os.path.exists(output_excel):   
             response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',status=status.HTTP_200_OK)
             # response['Content-Encoding'] = 'gzip'
-            response['Content-Disposition'] = 'attachment; filename=kpi.xlsx'
+            if month is not None:
+                response['Content-Disposition'] = f'attachment; filename=kpi_t{month}.xlsx'
+            else:
+                response['Content-Disposition'] = 'attachment; filename=kpi.xlsx'
         wb_obj.save(response)
         return response
