@@ -275,30 +275,28 @@ class ExcelView(APIView):
 
         # to get the location of the current python file
         basedir = os.getcwd()
+        basedir.replace("\\", "/")
         # print("dayasoflka: ",basedir)
         # to join it with the filename
-        excel_sheet = basedir+'\excelSheet'
+        excel_sheet = basedir+'/kpiExcelSheet'
         # output_excel = 'F:/RnD/DjangoProject/employee_manager/outputExcel/KPI.xlsx'
-        output_excel = basedir+'\outputExcel\KPI.xlsx'
+        output_excel = basedir+'/outputExcel/KPI.xlsx'
         if os.path.exists(output_excel):
             os.remove(output_excel)
         # tạo ra các file excel là tác ra theo các level nhân viên
         result=data_to_excel.GenerateExcelSheet(excel_sheet,data_dictionary)
-        if result is False:
-            print(result)
-            return Response({'message': 'query success but no output data'}, status=status.HTTP_200_OK)
-        else:
-            #List all excel files in folder
-            excel_folder = excel_sheet
-            excel_files = [os.path.join(root, file) for root, folder, files in os.walk(excel_folder) for file in files if file.endswith(".xlsx")]
-            # tổng hợp các file excel đã được format thành các sheet trong một file(làm thế này đễ dễ format các chỉ số định dạng của từng sheet)
-            data_to_excel.synthesizeExcelFilebySheet(excel_files,output_excel)
 
-            # tạo workbook lưu trữ excel và response để trả về file excel
-            wb_obj = openpyxl.load_workbook(output_excel)
-            if os.path.exists(output_excel):   
-                response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',status=status.HTTP_200_OK)
-                # response['Content-Encoding'] = 'gzip'
-                response['Content-Disposition'] = 'attachment; filename=kpi.xlsx'
-            wb_obj.save(response)
-            return response
+        #List all excel files in folder
+        excel_folder = excel_sheet
+        excel_files = [os.path.join(root, file) for root, folder, files in os.walk(excel_folder) for file in files if file.endswith(".xlsx")]
+        # tổng hợp các file excel đã được format thành các sheet trong một file(làm thế này đễ dễ format các chỉ số định dạng của từng sheet)
+        data_to_excel.synthesizeExcelFilebySheet(excel_files,output_excel)
+
+        # tạo workbook lưu trữ excel và response để trả về file excel
+        wb_obj = openpyxl.load_workbook(output_excel)
+        if os.path.exists(output_excel):   
+            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',status=status.HTTP_200_OK)
+            # response['Content-Encoding'] = 'gzip'
+            response['Content-Disposition'] = 'attachment; filename=kpi.xlsx'
+        wb_obj.save(response)
+        return response

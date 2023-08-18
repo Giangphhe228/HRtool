@@ -140,12 +140,13 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
         # dataframe.replace("CAT", "Đạt/Không đạt", inplace=True)
         dataframe.replace("month", "Tháng", inplace=True)
         # dataframe.fillna(0, inplace=True)
+        # formatResultExcelSheet(dataframe)
         for value, str in levels.items():
             temp_df = dataframe.loc[dataframe['level'] == str]
             if temp_df.empty:
                     raise ValueError("một trường quan trọng đang ko có đầu vào dẫn đến trả về dataframe trống không thể convert sang excel(level,department_id,deadline...)")
             # temp_df.drop(columns=['level'], axis=1)
-            file_name=f"\\nhóm {str}.xlsx"
+            file_name=f"/nhóm {str}.xlsx"
             file_directory = basedir+file_name
             if os.path.exists(file_directory):
                     os.remove(file_directory)
@@ -592,18 +593,53 @@ def synthesizeExcelFilebySheet(listDirectory,targetDirectory) -> None:
     # Lưu workbook tổng hợp lại vào một file mới
     wb_combined.save(targetDirectory)
 
-# def formatResultExcelSheet(dataframe) -> None:
-#     result_sheet_df=dataframe[[ei, name, lv, "teamId", tn, kq, tl, et, rt]]
-#     result_sheet_df[kq] = result_sheet_df[kq].astype(float)
-#     result_sheet_df[tl] = result_sheet_df[tl].astype(float)
-#     result_sheet_df[et] = result_sheet_df[et].astype(float)
-#     result_sheet_df[rt] = result_sheet_df[rt].astype(float)
-#     kq_sum = df.groupby([ei, type])[kq].sum().reset_index()
-#     tl_sum = df.groupby([ei, type])[tl].sum().reset_index()
-#     et_sum = df.groupby([ei])[et].sum().reset_index()
-#     rt_sum = df.groupby([ei])[rt].sum().reset_index()
+def formatResultExcelSheet(dataframe) -> None:
+    result_sheet_df=dataframe[[ei, name, lv, tn, type, kq, tl, et, rt]]
+    result_sheet_df.sort_values( ei, inplace=True)
+    result_sheet_df[kq] = result_sheet_df[kq].astype(float)
+    result_sheet_df[tl] = result_sheet_df[tl].astype(float)
+    result_sheet_df[et] = result_sheet_df[et].astype(float)
+    result_sheet_df[rt] = result_sheet_df[rt].astype(float)
+    kq_sum = result_sheet_df.groupby([ei, type])[kq].sum().reset_index()
+    tl_sum = result_sheet_df.groupby([ei, type])[tl].sum().reset_index()
+    et_sum = result_sheet_df.groupby([ei])[et].sum().reset_index()
+    rt_sum = result_sheet_df.groupby([ei])[rt].sum().reset_index()
+    result_sheet_df.drop(columns=[type], axis=1, inplace=True)
+    result_sheet_df.drop(columns=[kq], axis=1, inplace=True)
+    result_sheet_df.drop(columns=[tl], axis=1, inplace=True)
+    result_sheet_df.drop(columns=[et], axis=1, inplace=True)
+    result_sheet_df.drop(columns=[rt], axis=1, inplace=True)
+    df_data_sum = pd.DataFrame({ei: kq_sum[ei],
+                                type: kq_sum[type],
+                                kq: kq_sum[kq],
+                           tl: tl_sum[tl]})
+    df_time_sum = pd.DataFrame({ei: et_sum[ei],
+                           et: et_sum[et],
+                           rt: rt_sum[rt]})
+    
+    list_main_part = result_sheet_df.groupby([ei, name,lv]).apply(list)
+    main_part_df= list_main_part.reset_index(name="index")
+    main_part_df.drop(columns=['index'], axis=1, inplace=True)
+    df_data_sum_kpi=df_data_sum[df_data_sum[type] == 'kpi']
+    df_data_sum_kpi.drop(columns=[type], axis=1, inplace=True)
+    df_data_sum_kpi.rename(columns={tl: 'kết quả KPI'})
+    # print("đây là df_data_sum_kpi:\n",df_data_sum_kpi)
 
+    df_data_sum_okr=df_data_sum[df_data_sum[type] == 'okr']   
+    df_data_sum_okr.drop(columns=[type], axis=1, inplace=True)
+    df_data_sum_okr.rename(columns={tl: 'kết quả OKR'})
+    # print("đây là df_data_sum_okr:\n",df_data_sum_okr)
 
+    merged_df =pd.merge(main_part_df,df_data_sum_kpi, on=ei, how='left')
+    kpi_merged_df=pd.merge(merged_df,df_data_sum_okr, on=ei, how='left')
+    kpi_merged_df['NSNS']=''
+    kpi_merged_df['Số giờ OT']=''
+    time_merged_df=pd.merge(kpi_merged_df,df_time_sum, on=ei, how='left')
+    time_merged_df['Thời gian chênh lệch']= time_merged_df[rt]-time_merged_df[et]
+    
+    # print("đây là time_merged_df:\n",time_merged_df)
+    # result_sheet_df
+    
 #     department_df = department_df.set_index(['department_name', 'type', 'okr_kpi_id', 'objective_name', 'kr_phong', 'kr_team'])
         # dataframe.rename(columns={"0": "employeeId"}, inplace=True)
         # dataframe.rename(columns={"1": "fullName"}, inplace=True)
