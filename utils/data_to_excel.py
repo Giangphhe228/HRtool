@@ -140,7 +140,7 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
         # dataframe.replace("CAT", "Đạt/Không đạt", inplace=True)
         dataframe.replace("month", "Tháng", inplace=True)
         # dataframe.fillna(0, inplace=True)
-        # formatResultExcelSheet(dataframe)
+        formatResultExcelSheet(dataframe)
         for value, str in levels.items():
             temp_df = dataframe.loc[dataframe['level'] == str]
             if temp_df.empty:
@@ -609,8 +609,8 @@ def formatResultExcelSheet(dataframe) -> None:
     result_sheet_df.drop(columns=[tl], axis=1, inplace=True)
     result_sheet_df.drop(columns=[et], axis=1, inplace=True)
     result_sheet_df.drop(columns=[rt], axis=1, inplace=True)
-    df_data_sum = pd.DataFrame({ei: kq_sum[ei],
-                                type: kq_sum[type],
+    df_data_sum = pd.DataFrame({ei: tl_sum[ei],
+                                type: tl_sum[type],
                                 kq: kq_sum[kq],
                            tl: tl_sum[tl]})
     df_time_sum = pd.DataFrame({ei: et_sum[ei],
@@ -621,13 +621,15 @@ def formatResultExcelSheet(dataframe) -> None:
     main_part_df= list_main_part.reset_index(name="index")
     main_part_df.drop(columns=['index'], axis=1, inplace=True)
     df_data_sum_kpi=df_data_sum[df_data_sum[type] == 'kpi']
+    df_data_sum_kpi.drop(columns=[kq], axis=1, inplace=True)
     df_data_sum_kpi.drop(columns=[type], axis=1, inplace=True)
-    df_data_sum_kpi.rename(columns={tl: 'kết quả KPI'})
+    df_data_sum_kpi = df_data_sum_kpi.rename(columns={tl: 'kết quả KPI'}) 
     # print("đây là df_data_sum_kpi:\n",df_data_sum_kpi)
 
-    df_data_sum_okr=df_data_sum[df_data_sum[type] == 'okr']   
+    df_data_sum_okr=df_data_sum[df_data_sum[type] == 'okr'] 
+    df_data_sum_okr.drop(columns=[kq], axis=1, inplace=True)  
     df_data_sum_okr.drop(columns=[type], axis=1, inplace=True)
-    df_data_sum_okr.rename(columns={tl: 'kết quả OKR'})
+    df_data_sum_okr = df_data_sum_okr.rename(columns={tl: 'kết quả OKR'})
     # print("đây là df_data_sum_okr:\n",df_data_sum_okr)
 
     merged_df =pd.merge(main_part_df,df_data_sum_kpi, on=ei, how='left')
@@ -636,8 +638,16 @@ def formatResultExcelSheet(dataframe) -> None:
     kpi_merged_df['Số giờ OT']=''
     time_merged_df=pd.merge(kpi_merged_df,df_time_sum, on=ei, how='left')
     time_merged_df['Thời gian chênh lệch']= time_merged_df[rt]-time_merged_df[et]
-    
-    # print("đây là time_merged_df:\n",time_merged_df)
+    time_merged_df.rename_axis('STT')
+    time_merged_df.rename(columns={ei: "Mã NV"}, inplace=True)
+    time_merged_df.rename(columns={name: "Họ tên"}, inplace=True)
+    time_merged_df.rename(columns={lv: "Level"}, inplace=True)
+    print("đây là time_merged_df:\n",time_merged_df)
+
+    for str in levels:
+        df = time_merged_df[df["Level"] == str]
+        
+
     # result_sheet_df
     
 #     department_df = department_df.set_index(['department_name', 'type', 'okr_kpi_id', 'objective_name', 'kr_phong', 'kr_team'])
