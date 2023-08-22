@@ -10,6 +10,7 @@ from openpyxl.styles import Alignment
 from openpyxl.styles import PatternFill, Border, Side
 from openpyxl.utils import range_boundaries
 from urllib.parse import urlparse
+from openpyxl.worksheet.hyperlink import Hyperlink
 
 levels = {
                 2: 'L1',
@@ -19,6 +20,7 @@ levels = {
                 1: 'SVCNTS'
                 }
 # tạo biến tên cho các trường trong dataframe để sử dụng sau
+krid ='krId'
 krp = 'KR phòng'
 krt = 'KR team'
 krc = 'KR cá nhân'
@@ -52,8 +54,6 @@ def is_valid_string(s):
         return True
     else:
         return False
-    
-# print(is_valid_string("https://www.google.com/"))
 
 def extract_month_year(date_string):
     parts = date_string.split('/')
@@ -63,6 +63,16 @@ def extract_month_year(date_string):
         return month, year
     else:
         raise ValueError("Invalid date format. Expected MM/YYYY.")
+
+# Định nghĩa hàm tạo danh sách hyperlink
+def create_hyperlink(name, url):
+    names = name.str.split(',')
+    urls = url.str.split(',')
+    hyperlinks = []
+    for n, u in zip(names, urls):
+        hyperlink = Hyperlink(ref=u, target=u, display=n)
+        hyperlinks.append(hyperlink)
+    return hyperlinks
 
 def GenerateExcelSheet(basedir,data_dictionary) -> None:
         # Đóng kết nối hiện tại
@@ -134,13 +144,13 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
                                 'Tổng thời gian thực hiện công việc thực tế (giờ)', 'Note dự kiến','Note bằng chứng thực tế','QA','Bằng chứng','Link']
 
         dataframe.sort_values( ei, inplace=True)
-        dataframe.drop(columns=['krId'], axis=1, inplace=True)
+        # dataframe.drop(columns=['krId'], axis=1, inplace=True)
         dataframe.drop(columns=['teamId'], axis=1, inplace=True)
         # dataframe.replace("NUM", "%", inplace=True)
         # dataframe.replace("CAT", "Đạt/Không đạt", inplace=True)
         dataframe.replace("month", "Tháng", inplace=True)
         # dataframe.fillna(0, inplace=True)
-        formatResultExcelSheet(dataframe)
+        # formatResultExcelSheet(dataframe)
         for value, str in levels.items():
             temp_df = dataframe.loc[dataframe['level'] == str]
             if temp_df.empty:
@@ -178,12 +188,18 @@ def formatKPIExcelSheet(file_path,level) -> None:
     df[email] = df[email].apply(lambda x: x.split('@')[0] if x is not None else x)
     df[QA] = df[QA].apply(lambda x: 'OK' if x is True else ('NOT OK' if x is False else 'Trống'))
     df[ei] = df[ei].apply(lambda x: '' if x == None else x)
-    df[proofStr].fillna('', inplace=True)
+    df[proofURL].fillna('', inplace=True)
     df[proofStr].fillna('', inplace=True)
     df[proofStr] = df[proofStr].apply(lambda x: '' if x == None else x)
     df[proofURL] = df[proofURL].apply(lambda x: '' if x == None else x)
     df[type] = df[type].apply(lambda x: '' if x == None else x)
     # tính tổng các trường cần tính
+    agg_funcs = {proofStr: ','.join, proofURL: ','.join}
+    proof_sum = df.groupby( krid, as_index=False).agg(agg_funcs)
+    proof_sum[proofURL].fillna('', inplace=True)
+    proof_sum[proofStr].fillna('', inplace=True)
+    proof_sum[proofStr] = proof_sum[proofStr].apply(lambda x: '' if x == None else x)
+    proof_sum[proofURL] = proof_sum[proofURL].apply(lambda x: '' if x == None else x)
     tsct_sum = df.groupby([ei, type])[tsct].sum().reset_index()
     kq_sum = df.groupby([ei, type])[kq].sum().reset_index()
     tl_sum = df.groupby([ei, type])[tl].sum().reset_index()
@@ -212,15 +228,27 @@ def formatKPIExcelSheet(file_path,level) -> None:
     merged_sum_df = pd.merge(df_data_sum, merged_sum_idx_df,
                              left_index=True, right_index=True, how='left')
     merged_sum_df.fillna(0, inplace=True)
+
     merged_sum_df[et] = merged_sum_df[et].apply(lambda x: '' if x == 0 else x)
     merged_sum_df[rt] = merged_sum_df[rt].apply(lambda x: '' if x == 0 else x)
     # print("đây là merged_sum_df: \n",merged_sum_df)
 
+
+
     # sắp xếp lại và lấy vị trí các đoạn cần insert các tổng vào (need_add_index_df), đồng thời dùng sorted_df cho các thao tác sau (sorted_df)
     sorted_df = df.sort_values(by=[ei, type], ascending=[
                                True, True]).reset_index()
+    # xóa các record duplicate nếu 1 kpi/okr có nhiều proof
     sorted_df.drop(columns=['index'], axis=1, inplace=True)
-    # print("dataframe sorted_df: \n",sorted_df)
+    sorted_df.drop(proofStr, axis=1, inplace=True)
+    sorted_df.drop(proofURL, axis=1, inplace=True)
+    sorted_df  = pd.merge(sorted_df.drop_duplicates(subset=krid), proof_sum, on=krid)
+    sorted_df.drop(columns=[krid], axis=1, inplace=True)
+
+    # Tạo cột 'hyperlinks' chứa danh sách các đối tượng Hyperlink
+    sorted_df[noteproof] = sorted_df.apply(lambda row: create_hyperlink(df[proofStr], df[proofURL]), axis=1)
+    print("dataframe sorted_df: \n",sorted_df)
+
     index_sorted_df = sorted_df[[ei, type]]
     # Tạo một cột boolean cho biết các hàng có là bản sao của hàng trước đó hay không
     is_duplicated = index_sorted_df.duplicated(subset=[ei, type], keep='last')
@@ -245,6 +273,8 @@ def formatKPIExcelSheet(file_path,level) -> None:
     # thay đổi thành rỗng để có thể groupby phía sau
     sorted_df[tn] = sorted_df[tn].apply(lambda x: '' if x == None else x)
     need_add_index_df.set_index(need_add_index_df.index.map(map_new_index), inplace=True)
+    # print("đây là sorted_df: \n",sorted_df)
+    # print("đây là proof_sum: \n",proof_sum)
 
     # print("đây là sorted_df mới : \n",sorted_df)
     # print("đây là sorted_df mới : \n",sorted_df[[name,tn]])
@@ -406,11 +436,6 @@ def formatKPIExcelSheet(file_path,level) -> None:
                 merging = False
                 sheet.merge_cells(start_row=merge_start, start_column=1, end_row=row_index - 1, end_column=1)
 
-    # Đọc nội dung của sheet thành DataFrame
-    data = sheet.values
-    columns = next(data)  # Lấy tên cột từ dòng đầu tiên
-    check_df = pd.DataFrame(data, columns=columns)  
-    # print("đây là check_df : \n",check_df)
 
     # lấy vị trí column link bằng chứng
     note_proof_column = [noteproof,proofStr,proofURL]
@@ -420,23 +445,28 @@ def formatKPIExcelSheet(file_path,level) -> None:
 
     # Lặp qua từng hàng trong sheet
     # print("đây là level : \n",level)
-    row_index = 0
+    # row_index = 0
     
-    for row in sheet.iter_rows(min_row=4, values_only=True):
-        text = row[note_proof_column_position[1]]  
-        url = row[note_proof_column_position[2]]   
-        row_index += 1 
-        if is_valid_string(url):      
-            if url not in proofURL:
-                # Tăng biến chỉ số hàng 
-                cell = sheet.cell(row=row_index + 3, column=note_proof_column_position[0]+1, value=text)
-                # cell.value = text
-                # Gán URL cho văn bản
-                cell.hyperlink = url
+    # # Định dạng cột chứa hyperlink
+    # for row_idx, row in enumerate(sheet.iter_rows(min_row=2, min_col=1, max_col=1), start=2):
+    #     hyperlinks = df['hyperlinks'][row_idx - 2]
+    #     for cell, hyperlink in zip(row, hyperlinks):
+    #         cell.value = hyperlink.display
+    #         cell.hyperlink = hyperlink
+
+    # # Cài đặt định dạng xuống dòng cho cột 'Name'
+    # for col in sheet.iter_cols(min_col=1, max_col=1):
+    #     for cell in col:
+    #         cell.alignment = Alignment(wrap_text=True)
     
-    # Xóa cột dựa trên vị trí
+    # # Xóa cột dựa trên vị trí
     sheet.delete_cols(note_proof_column_position[1]+1, note_proof_column_position[2]+1)
 
+    # Đọc nội dung của sheet thành DataFrame
+    # data = sheet.values
+    # columns = next(data)  # Lấy tên cột từ dòng đầu tiên
+    # check_df = pd.DataFrame(data, columns=columns)  
+    # print("đây là check_df : \n",check_df)
 
     # Thiết lập tự động tăng kích thước các cột
     # for col in sheet.columns:
