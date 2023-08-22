@@ -11,6 +11,7 @@ from openpyxl.styles import PatternFill, Border, Side
 from openpyxl.utils import range_boundaries
 from urllib.parse import urlparse
 from openpyxl.worksheet.hyperlink import Hyperlink
+from openpyxl.cell.rich_text import TextBlock, CellRichText
 
 levels = {
                 2: 'L1',
@@ -63,16 +64,6 @@ def extract_month_year(date_string):
         return month, year
     else:
         raise ValueError("Invalid date format. Expected MM/YYYY.")
-
-# Định nghĩa hàm tạo danh sách hyperlink
-def create_hyperlink(name, url):
-    names = name.str.split(',')
-    urls = url.str.split(',')
-    hyperlinks = []
-    for n, u in zip(names, urls):
-        hyperlink = Hyperlink(ref=u, target=u, display=n)
-        hyperlinks.append(hyperlink)
-    return hyperlinks
 
 def GenerateExcelSheet(basedir,data_dictionary) -> None:
         # Đóng kết nối hiện tại
@@ -244,11 +235,7 @@ def formatKPIExcelSheet(file_path,level) -> None:
     sorted_df.drop(proofURL, axis=1, inplace=True)
     sorted_df  = pd.merge(sorted_df.drop_duplicates(subset=krid), proof_sum, on=krid)
     sorted_df.drop(columns=[krid], axis=1, inplace=True)
-
-    # Tạo cột 'hyperlinks' chứa danh sách các đối tượng Hyperlink
-    sorted_df[noteproof] = sorted_df.apply(lambda row: create_hyperlink(df[proofStr], df[proofURL]), axis=1)
-    print("dataframe sorted_df: \n",sorted_df)
-
+    # print("dataframe sorted_df: \n",sorted_df)
     index_sorted_df = sorted_df[[ei, type]]
     # Tạo một cột boolean cho biết các hàng có là bản sao của hàng trước đó hay không
     is_duplicated = index_sorted_df.duplicated(subset=[ei, type], keep='last')
@@ -445,21 +432,30 @@ def formatKPIExcelSheet(file_path,level) -> None:
 
     # Lặp qua từng hàng trong sheet
     # print("đây là level : \n",level)
-    # row_index = 0
-    
-    # # Định dạng cột chứa hyperlink
-    # for row_idx, row in enumerate(sheet.iter_rows(min_row=2, min_col=1, max_col=1), start=2):
-    #     hyperlinks = df['hyperlinks'][row_idx - 2]
-    #     for cell, hyperlink in zip(row, hyperlinks):
-    #         cell.value = hyperlink.display
-    #         cell.hyperlink = hyperlink
-
-    # # Cài đặt định dạng xuống dòng cho cột 'Name'
-    # for col in sheet.iter_cols(min_col=1, max_col=1):
-    #     for cell in col:
-    #         cell.alignment = Alignment(wrap_text=True)
-    
-    # # Xóa cột dựa trên vị trí
+    row_index = 0
+    b_font = Font(name='Calibri',
+             size=11,
+            bold=False,
+            italic=False,
+           vertAlign=None,
+            underline='none',
+             strike=False,
+            color='00FF0000')
+    for row in sheet.iter_rows(min_row=4, values_only=True):
+        text_string = row[note_proof_column_position[1]]  
+        url_string = row[note_proof_column_position[2]]   
+        row_index += 1 
+        if is_valid_string(url_string):      
+            if url_string not in proofURL:
+                rich_text = CellRichText()
+                cell_values = text_string.split(',')  # Split the comma-separated values
+                urls = url_string.split(',')
+                for value, url in zip(cell_values,urls):
+                    text_block = TextBlock(text=value,font=b_font,Hyperlink=url)
+                    rich_text.append(text_block)
+                    # cell_value = f'=HYPERLINK({url}, {value})'
+                    sheet.cell(row=row_index + 3, column=note_proof_column_position[0]+1).rich_text=rich_text
+    # Xóa cột dựa trên vị trí
     sheet.delete_cols(note_proof_column_position[1]+1, note_proof_column_position[2]+1)
 
     # Đọc nội dung của sheet thành DataFrame
