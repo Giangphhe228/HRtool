@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import openpyxl
+import xlsxwriter
 from django.db import connection, connections
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -11,7 +12,10 @@ from openpyxl.styles import PatternFill, Border, Side
 from openpyxl.utils import range_boundaries
 from urllib.parse import urlparse
 from openpyxl.worksheet.hyperlink import Hyperlink
+from openpyxl.cell.text import InlineFont
 from openpyxl.cell.rich_text import TextBlock, CellRichText
+from openpyxl.cell.text import Font
+from openpyxl.cell.text import Text
 
 levels = {
                 2: 'L1',
@@ -153,6 +157,7 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
                     os.remove(file_directory)
             # print("đây là temp_df:\n",temp_df)
             temp_df.to_excel(file_directory)
+            # formatKPIExcelSheetWithXLSXWriter(file_directory,str)
             formatKPIExcelSheet(file_directory,str)
 
 def excelToDataframe(file_path):
@@ -177,7 +182,7 @@ def formatKPIExcelSheet(file_path,level) -> None:
     df[et] = df[et].astype(float)
     df[rt] = df[rt].astype(float)
     df[email] = df[email].apply(lambda x: x.split('@')[0] if x is not None else x)
-    df[QA] = df[QA].apply(lambda x: 'OK' if x is True else ('NOT OK' if x is False else 'Trống'))
+    df[QA] = df[QA].apply(lambda x: 'OK' if x is True else ('NOT OK' if x is False else ''))
     df[ei] = df[ei].apply(lambda x: '' if x == None else x)
     df[proofURL].fillna('', inplace=True)
     df[proofStr].fillna('', inplace=True)
@@ -260,11 +265,6 @@ def formatKPIExcelSheet(file_path,level) -> None:
     # thay đổi thành rỗng để có thể groupby phía sau
     sorted_df[tn] = sorted_df[tn].apply(lambda x: '' if x == None else x)
     need_add_index_df.set_index(need_add_index_df.index.map(map_new_index), inplace=True)
-    # print("đây là sorted_df: \n",sorted_df)
-    # print("đây là proof_sum: \n",proof_sum)
-
-    # print("đây là sorted_df mới : \n",sorted_df)
-    # print("đây là sorted_df mới : \n",sorted_df[[name,tn]])
 
     # 1. tạo ra các dataframe chứa tên, level, tên nhóm và dataframe chưa tên các cột  (user_df)
     grouped = sorted_df.groupby([ei, name,email, lv, tn])
@@ -290,11 +290,7 @@ def formatKPIExcelSheet(file_path,level) -> None:
         columns='FirstOccurrence')
     firstOccurrence_list = firstOccurrence_df.index
     sorted_df = sorted_df.drop(columns='FirstOccurrence', axis=1)
-    # print("đây là firstOccurrence_list : \n",firstOccurrence_list)
-    # 3. dùng openpyxl thêm các header vào các vị trí(2.) là:
-    #                                      - các record(1.)
-    #                                      - các record tên cột(1.)
-    #                                      - Tên nhóm là header chính
+
 
     # Chuyển DataFrame thành một đối tượng Sheet bằng pandas dataframe_to_rows
     user_rows = list(dataframe_to_rows(user_df, index=False, header=False))
@@ -433,14 +429,16 @@ def formatKPIExcelSheet(file_path,level) -> None:
     # Lặp qua từng hàng trong sheet
     # print("đây là level : \n",level)
     row_index = 0
-    b_font = Font(name='Calibri',
+    font = Font(name='Arial',
              size=11,
-            bold=False,
-            italic=False,
-           vertAlign=None,
-            underline='none',
+             bold=False,
+             italic=False,
+             vertAlign=None,
+             underline='none',
              strike=False,
-            color='00FF0000')
+             color='00FF0000')
+    inline_font = InlineFont(font)
+
     for row in sheet.iter_rows(min_row=4, values_only=True):
         text_string = row[note_proof_column_position[1]]  
         url_string = row[note_proof_column_position[2]]   
@@ -450,11 +448,16 @@ def formatKPIExcelSheet(file_path,level) -> None:
                 rich_text = CellRichText()
                 cell_values = text_string.split(',')  # Split the comma-separated values
                 urls = url_string.split(',')
+                # print("đây là urls : \n",urls)
                 for value, url in zip(cell_values,urls):
-                    text_block = TextBlock(text=value,font=b_font,Hyperlink=url)
+                    text_block = TextBlock(text=value+" : ",font=inline_font)
+                    url_block = TextBlock(text=url+"\n",font=inline_font)
                     rich_text.append(text_block)
+                    rich_text.append(url_block)
                     # cell_value = f'=HYPERLINK({url}, {value})'
-                    sheet.cell(row=row_index + 3, column=note_proof_column_position[0]+1).rich_text=rich_text
+                cell = sheet.cell(row=row_index + 3, column=note_proof_column_position[0]+1) 
+                cell.value = rich_text
+                # print("đây là cell : \n",cell)
     # Xóa cột dựa trên vị trí
     sheet.delete_cols(note_proof_column_position[1]+1, note_proof_column_position[2]+1)
 
@@ -512,7 +515,7 @@ def formatKPIExcelSheet(file_path,level) -> None:
     for index in column_positions_30:
         # đoạn này index +1 là vì vào sheet excel các index tính từ 1 chứ không còn là 0 như ở dataframe
         column_letter = openpyxl.utils.get_column_letter(index+1)
-        sheet.column_dimensions[column_letter].width = 30
+        sheet.column_dimensions[column_letter].width = 35
     # Update the column widths
     for index in column_positions_20:
         # đoạn này index +1 là vì vào sheet excel các index tính từ 1 chứ không còn là 0 như ở dataframe
@@ -673,31 +676,384 @@ def formatResultExcelSheet(dataframe) -> None:
     for str in levels:
         df = time_merged_df[df["Level"] == str]
         
+def formatKPIExcelSheetWithXLSXWriter(file_path,level) -> None:
+# xử lý dữ liệu với dataframe của pandas 
+# -----------------------------------------------------------------------------------------------------------
+    # Tạo DataFrame từ dữ liệu
+    df = excelToDataframe(file_path)
+    df[tsct] = df[tsct].astype(int)
+    df[kq] = df[kq].astype(float)
+    df[tl] = df[tl].astype(float)
+    df[et] = df[et].astype(float)
+    df[rt] = df[rt].astype(float)
+    df[email] = df[email].apply(lambda x: x.split('@')[0] if x is not None else x)
+    df[QA] = df[QA].apply(lambda x: 'OK' if x is True else ('NOT OK' if x is False else 'Trống'))
+    df[ei] = df[ei].apply(lambda x: '' if x == None else x)
+    df[proofURL].fillna('', inplace=True)
+    df[proofStr].fillna('', inplace=True)
+    df[proofStr] = df[proofStr].apply(lambda x: '' if x == None else x)
+    df[proofURL] = df[proofURL].apply(lambda x: '' if x == None else x)
+    df[type] = df[type].apply(lambda x: '' if x == None else x)
+    # tính tổng các trường cần tính
+    agg_funcs = {proofStr: ','.join, proofURL: ','.join}
+    proof_sum = df.groupby( krid, as_index=False).agg(agg_funcs)
+    proof_sum[proofURL].fillna('', inplace=True)
+    proof_sum[proofStr].fillna('', inplace=True)
+    proof_sum[proofStr] = proof_sum[proofStr].apply(lambda x: '' if x == None else x)
+    proof_sum[proofURL] = proof_sum[proofURL].apply(lambda x: '' if x == None else x)
+    tsct_sum = df.groupby([ei, type])[tsct].sum().reset_index()
+    kq_sum = df.groupby([ei, type])[kq].sum().reset_index()
+    tl_sum = df.groupby([ei, type])[tl].sum().reset_index()
+    et_sum = df.groupby([ei])[et].sum().reset_index()
+    rt_sum = df.groupby([ei])[rt].sum().reset_index()
+    # Tạo DataFrame chứa các tổng
+    df_data_sum = pd.DataFrame({ei: tsct_sum[ei],
+                           type: tsct_sum[type],
+                           tsct: tsct_sum[tsct],
+                           kq: kq_sum[kq],
+                           tl: tl_sum[tl]})
+    df_time_sum = pd.DataFrame({ei: et_sum[ei],
+                           et: et_sum[et],
+                           rt: rt_sum[rt]})
 
-    # result_sheet_df
+    # merge các tổng đã tính ở trên vào một hàng và tìm vị trị cần điền các tổng đó trong dataframe gốc
+    index_df_data_sum = df_data_sum[[ei, type]]
+    # Tạo một cột boolean cho biết các hàng có là bản sao của hàng trước đó hay không
+    is_duplicated = index_df_data_sum.duplicated(subset=[ei, type], keep='last')
+    # Chỉ giữ lại các hàng cuối cùng của mỗi cặp giá trị bằng nhau
+    max_indices = index_df_data_sum[~is_duplicated]
+    # print("đây là max_indices: \n",max_indices)
+    merged_sum_idx_df = pd.merge(
+        max_indices, df_time_sum, on=ei, how='left')
+    merged_sum_idx_df.drop(columns=[ei], axis=1, inplace=True)
+    merged_sum_df = pd.merge(df_data_sum, merged_sum_idx_df,
+                             left_index=True, right_index=True, how='left')
+    merged_sum_df.fillna(0, inplace=True)
+
+    merged_sum_df[et] = merged_sum_df[et].apply(lambda x: '' if x == 0 else x)
+    merged_sum_df[rt] = merged_sum_df[rt].apply(lambda x: '' if x == 0 else x)
+    # print("đây là merged_sum_df: \n",merged_sum_df)
+
+
+
+    # sắp xếp lại và lấy vị trí các đoạn cần insert các tổng vào (need_add_index_df), đồng thời dùng sorted_df cho các thao tác sau (sorted_df)
+    sorted_df = df.sort_values(by=[ei, type], ascending=[
+                               True, True]).reset_index()
+    # xóa các record duplicate nếu 1 kpi/okr có nhiều proof
+    sorted_df.drop(columns=['index'], axis=1, inplace=True)
+    sorted_df.drop(proofStr, axis=1, inplace=True)
+    sorted_df.drop(proofURL, axis=1, inplace=True)
+    sorted_df  = pd.merge(sorted_df.drop_duplicates(subset=krid), proof_sum, on=krid)
+    sorted_df.drop(columns=[krid], axis=1, inplace=True)
+    # print("dataframe sorted_df: \n",sorted_df)
+    index_sorted_df = sorted_df[[ei, type]]
+    # Tạo một cột boolean cho biết các hàng có là bản sao của hàng trước đó hay không
+    is_duplicated = index_sorted_df.duplicated(subset=[ei, type], keep='last')
+    # Chỉ giữ lại các hàng cuối cùng của mỗi cặp giá trị bằng nhau
+    need_add_index_df = index_sorted_df[~is_duplicated]
+    # print("đây là need_add_index_df : \n",need_add_index_df)
+    # thêm các kết quả đã tính toán ở trên vào cuối của mỗi kpi
+    added_row = 0
+    map_new_index = {}
+    for (index, i) in zip(need_add_index_df.index, range(len(merged_sum_df))):
+            df_new_record = pd.DataFrame(merged_sum_df.iloc[i, :]).T
+            true_position = index+added_row+1
+            sorted_df = pd.concat([sorted_df.iloc[:true_position], df_new_record,
+                                  sorted_df.iloc[true_position:]]).reset_index(drop=True)
+            # thêm các giá trị index mới vào dictionary
+            map_new_index[index] = true_position
+            added_row += 1
+    sorted_df.drop(columns=[None], axis=1, inplace=True)
+    sorted_df = sorted_df.apply(lambda x: '' if x.empty else x)
+    sorted_df.drop(columns=[type+"_x"], axis=1, inplace=True)
+    sorted_df.drop(columns=[type+"_y"], axis=1, inplace=True)
+    # thay đổi thành rỗng để có thể groupby phía sau
+    sorted_df[tn] = sorted_df[tn].apply(lambda x: '' if x == None else x)
+    need_add_index_df.set_index(need_add_index_df.index.map(map_new_index), inplace=True)
+
+    # 1. tạo ra các dataframe chứa tên, level, tên nhóm và dataframe chưa tên các cột  (user_df)
+    grouped = sorted_df.groupby([ei, name,email, lv, tn])
+    user_df = grouped.size().reset_index(name='Count')
+    user_df.insert(0, 'Index', user_df.index+1)
+    user_df.drop(columns=['Count'], axis=1, inplace=True)
+    # bỏ cột id trong giao diện
+    user_df.drop(columns=[ei], axis=1, inplace=True)
+    # print("đây là user_df : \n",user_df)
+
+    # Create a new DataFrame to store the column names (title_df)'
+    columns_to_drop = [ei, name,email, lv, tn]
+    insert_header_name_df = sorted_df.drop(columns=columns_to_drop, axis=1)
+    title_df = pd.DataFrame([insert_header_name_df.columns],
+                            columns=insert_header_name_df.columns)
+    # print("đây là user_df : \n",title_df)
+
+    # 2. tạo ra một list chứa các vị trí cần add các record đó vào bằng cách tìm các vị trí đầu xuất hiện của các record
+    # Tạo cột mới để xác định lần xuất hiện đầu tiên của giá trị trùng nhau
+    sorted_df['FirstOccurrence'] = ~sorted_df.duplicated(subset=[ei])
+    # lấy lần xuất hiện đầu tiên của các giá trị trùng nhau (firstOccurrence_df)
+    firstOccurrence_df = sorted_df[sorted_df['FirstOccurrence']].drop(
+        columns='FirstOccurrence')
+    firstOccurrence_list = firstOccurrence_df.index
+    sorted_df = sorted_df.drop(columns='FirstOccurrence', axis=1)
+
+
+    # Chuyển DataFrame thành một đối tượng Sheet bằng pandas dataframe_to_rows
+    user_rows = list(dataframe_to_rows(user_df, index=False, header=False))
+    if len(user_rows) != len(firstOccurrence_list):
+        raise ValueError("Số lượng dòng cần thêm phải bằng số dự liệu muốn thêm!")
     
-#     department_df = department_df.set_index(['department_name', 'type', 'okr_kpi_id', 'objective_name', 'kr_phong', 'kr_team'])
-        # dataframe.rename(columns={"0": "employeeId"}, inplace=True)
-        # dataframe.rename(columns={"1": "fullName"}, inplace=True)
-        # dataframe.rename(columns={"2": "level"}, inplace=True)
-        # dataframe.rename(columns={"3": "teamId"}, inplace=True)
-        # dataframe.rename(columns={"4": "teamName"}, inplace=True)
-        # dataframe.rename(columns={"5": "Loại"}, inplace=True)
-        # dataframe.rename(columns={"6": "KR phòng"}, inplace=True)
-        # dataframe.rename(columns={"7": "KR team"}, inplace=True)
-        # dataframe.rename(columns={"8": "KR cá nhân"}, inplace=True)
-        # dataframe.rename(columns={"9": "Công thức tính"}, inplace=True)
-        # dataframe.rename(columns={"10": "Nguồn dữ liệu"}, inplace=True)
-        # dataframe.rename(columns={"11": "Định kỳ tính"}, inplace=True)
-        # dataframe.rename(columns={"12": "Đơn vị tính"}, inplace=True)
-        # dataframe.rename(columns={"13": "Điều kiện"}, inplace=True)
-        # dataframe.rename(columns={"14": "Norm"}, inplace=True)
-        # dataframe.rename(columns={"15": "% Trọng số chỉ tiêu"}, inplace=True)
-        # dataframe.rename(columns={"16": "Kết quả"}, inplace=True)
-        # dataframe.rename(columns={"17": "Tỷ lệ"}, inplace=True)
-        # dataframe.rename(columns={"18": "Tổng thời gian dự kiến/ ước tính công việc (giờ)"}, inplace=True)
-        # dataframe.rename(columns={"19": "Tổng thời gian thực hiện công việc thực tế (giờ)"}, inplace=True)
-        # dataframe.rename(columns={"20": "Note"}, inplace=True)
+    # tạo ra 1 dataframe có nhiều hàng là tên các cột cần add vào sheet
+    for i in range(len(user_rows)):
+         title_df = pd.concat([title_df, title_df], ignore_index=True)
+
+    # lấy vị trí các cột cần mở rộng khi align bằng openpyxl
+    sum_column_names = [tsct, kq, tl, et,rt]
+    sum_column_positions = [title_df.columns.get_loc(col_name) for col_name in sum_column_names]
+
+    column_name_rows = list(dataframe_to_rows(title_df, index=False, header=False))
+    rows = dataframe_to_rows(insert_header_name_df, index=False, header=False)
+
+
+# format các trường dữ liệu với workbook của openpyxl
+# -----------------------------------------------------------------------------------------------------------
+    # tạo một sheet excel mới
+    workbook = xlsxwriter.Workbook(options={'nan_inf_to_errors': True})
+    xlsxsheet = workbook.add_worksheet()
+    # Ghi dữ liệu từ DataFrame vào Workbook
+    # Gán tiêu đề cho sheet
+    Header_font = Font(name='Arial',size=16, bold=True)
+    header_format = workbook.add_format({
+    'bold': True,
+    'font_name': 'Arial',
+    'font_size': 12,
+    'align': 'center',
+    'valign': 'vcenter',  # Optional: Vertically center the text
+    'border': 1,  # Optional: Add a border to the header cells
+    'bg_color': 'yellow',  # Optional: Set background color
+    })  
+    header_text=f"nhóm {level}"
+    xlsxsheet.set_header(header_text, {'font': header_format})
+
+    # Merge các ô trong dòng đầu tiên
+    xlsxsheet.merge_range(1, 1, 1, title_df.shape[1], 'Merged Header', header_format)
+
+    # Chèn các dòng vào vị trí xác định (từ dòng 2 trở đi)
+    cell_format = workbook.add_format({
+    'font_name': 'Arial',
+    'font_size': 11,
+    'bold': True
+    })
+    for r_idx, row in enumerate(rows, 2):
+        for c_idx, value in enumerate(row, 1):
+            xlsxsheet.write(r_idx, c_idx, value,cell_format)
+
+    # thêm các dòng thông tin người dung và title của các trường vào sheet, đồng thời thêm màu, sửa font
+    # light_blue_fill = PatternFill(start_color='B8CCE4', end_color='B8CCE4', fill_type='solid')
+
+    yellow_cell_format = workbook.add_format()
+    yellow_cell_format.set_bg_color('#FFFF99') 
+
+    light_blue_cell_format = workbook.add_format({
+    'font_name': 'Arial',
+    'font_size': 11,
+    'bold': True
+    })
+    light_blue_cell_format.set_bg_color('#CCE0FF') 
+    light_blue_cell_format.set_font_color('#FF0000')
+
+    dark_blue_cell_format = workbook.add_format({
+    'font_name': 'Arial',
+    'font_size': 11,
+    'bold': True
+    })
+    dark_blue_cell_format.set_bg_color('#6699CC')  
+    dark_blue_cell_format.set_font_color('#FFFFFF')
+
+    light_green_cell_format = workbook.add_format()
+    light_green_cell_format.set_bg_color('#B0E57C') 
+
+    dark_green_cell_format = workbook.add_format()
+    dark_green_cell_format.set_bg_color('#008000')  
+
+    alittler_dark_blue_cell_format = workbook.add_format()
+    alittler_dark_blue_cell_format.set_bg_color('#9FC9E7') 
+    
+    # lấy vị trí các column cần đổi màu xanh lá cây nhạt
+    column_light_green_fill = [tsct, kq, tl, et, note]
+    column_positions_light_green_fill = [title_df.columns.get_loc(col_name)+1 for col_name in column_light_green_fill]
+
+    # lấy vị trí các column cần đổi màu xanh lá cây đậm
+    column_dark_green_fill = [QA]
+    column_positions_dark_green_fill = [title_df.columns.get_loc(col_name)+1 for col_name in column_dark_green_fill]
+
+    # # lấy vị trí các column cần đổi màu xanh lá cây đậm
+    # column_dark_green_fill = [tsct, 'KR team', 'KR cá nhân', 'Công thức tính', note]
+    # column_positions_dark_green_fill = [title_df.columns.get_loc(col_name) for col_name in column_dark_green_fill]
+
+    # lấy vị trí các column cần đổi màu xanh da trời nhạt
+    column_light_blue_fill = [type,rt,noteproof]
+    column_positions_light_blue_fill = [title_df.columns.get_loc(col_name)+1 for col_name in column_light_blue_fill]
+
+    for row_sum_index in need_add_index_df.index:
+        for col_sum_index in sum_column_positions:
+            # ở đây row phải +2 là vì: sheet có các index từ số 1 + header là lấy mất 1 dòng đầu
+            # ở đây col phải +1 là vì: sheet có các index từ số 1
+            xlsxsheet.write_blank(row_sum_index+2, col_sum_index+1, None,yellow_cell_format)
+
+    added_sheet_row = 0
+    for insert_index, row_user_data, row_column_name in zip(firstOccurrence_list, user_rows,column_name_rows):       
+        user_insert = insert_index+added_sheet_row+2
+        title_insert = insert_index+added_sheet_row+3
+        # sheet.insert_rows(user_insert, 1)
+        # sheet.insert_rows(title_insert, 1)
+        # thêm dòng thông tin user
+        for col_idx_user,user_value in enumerate(row_user_data, 1):
+            xlsxsheet.write(user_insert, col_idx_user, user_value, light_blue_cell_format)
+        # thêm dòng title
+        for col_idx,column_name_value in enumerate(row_column_name,1):          
+            xlsxsheet.write(user_insert, col_idx_user, column_name_value, dark_blue_cell_format)
+            
+            for green_index in column_positions_light_green_fill:
+                if green_index==col_idx:
+                    # print("vị trí xanh lá cây:",green_index)
+                    xlsxsheet.write_blank(title_insert, green_index, None, light_green_cell_format)
+
+            for dark_green_index in column_positions_dark_green_fill:
+                if dark_green_index==col_idx:
+                    # print("vị trí xanh lá cây đậm:",dark_green_index)
+                    xlsxsheet.write_blank(title_insert, dark_green_index, None, dark_green_cell_format)
+
+            for blue_index in column_positions_light_blue_fill:
+                if blue_index==col_idx:
+                    # print("vị trí xanh da trời nhạt:",blue_index)
+                    xlsxsheet.write_blank(title_insert, blue_index, None, alittler_dark_blue_cell_format)
+
+        if(insert_index!=0):
+            #  blank_insert = insert_index+added_sheet_row+2
+            #  xlsxsheet.write_blank(title_insert, blue_index, None, alittler_dark_blue_cell_format)
+            #  sheet.insert_rows(blank_insert, 1)
+             added_sheet_row+=3       
+        else:
+             added_sheet_row+=2
+
+    # Get the dimensions of the worksheet
+    num_rows = xlsxsheet.dim_rowmax + 1
+    num_cols = xlsxsheet.dim_colmax + 1
+
+    data_list = []
+
+    # Loop through rows and columns to gather data
+    for row_num in range(num_rows):
+        row_data = []
+        for col_num in range(num_cols):
+            cell_value = xlsxsheet.table.get(row_num, col_num)
+            print("đây là cell_value:",cell_value)
+            row_data.append(cell_value)
+        data_list.append(row_data)
+
+    # Biến trạng thái
+    merging = False
+    merge_start = None
+    merge_value = None
+    # lấy vị trí cột loại để merge các cell 
+    merge_column_position = title_df.columns.get_loc(type)
+    # Duyệt qua các dòng trong cột "loại"
+    for row_index, row in enumerate(data_list[merge_column_position:], start=1):
+        if row[0] =='kpi' or row[0]=='okr':
+            if not merging:
+                merging = True
+                merge_start = row_index
+                merge_value = row[0]
+        else : 
+            if merging:
+                merging = False
+                xlsxsheet.merge_range(merge_start, 1, row_index - 1, 1, merge_value)
+                merge_value=None
+
+
+
+    # lấy vị trí column link bằng chứng
+    note_proof_column = [noteproof,proofStr,proofURL]
+    note_proof_column_position = [title_df.columns.get_loc(col_name) for col_name in note_proof_column]
+
+    hyperlink_format = workbook.add_format({
+    'color': 'blue',
+    'underline': 1,
+    })
+    
+    row_index = 0
+    for row in enumerate(data_list, start=4):
+        text_string = row[note_proof_column_position[1]]  
+        url_string = row[note_proof_column_position[2]]   
+        row_index += 1 
+        if is_valid_string(url_string):      
+            if url_string not in proofURL:
+                rich_text = CellRichText()
+                cell_values = text_string.split(',')  # Split the comma-separated values
+                urls = url_string.split(',')
+                # print("đây là urls : \n",urls)
+                for value, url in zip(cell_values,urls):
+                    text_block = workbook.add_rich_string()
+                    text_block.append(value)
+                    text_block.append('\n', hyperlink_format, url)
+                    rich_text.append(text_block)
+                    # cell_value = f'=HYPERLINK({url}, {value})'
+                xlsxsheet.write(row_index + 3, note_proof_column_position[0]+1, rich_text) 
+    # Xóa cột dựa trên vị trí
+    xlsxsheet.set_column(note_proof_column_position[1]+1, note_proof_column_position[2]+1, 0)
+
+    # Thiết lập tự động tăng kích thước các cột
+    # for col in sheet.columns:
+    #     max_length = 0
+    #     for cell in col:
+    #         try:
+    #             if len(str(cell.value)) > max_length:
+    #                 max_length = len(cell.value)
+    #         except:
+    #             pass
+    #     adjusted_width = (max_length + 2) * 1.2
+    #     sheet.column_dimensions[col[0].column_letter].width = adjusted_width
+
+    # Đặt viền cho các cell
+    format_with_border_wrap_center = workbook.add_format({
+        'border': 1,          # Border width
+        'border_color': 'black',  # Border color
+        'text_wrap': True,     # Wrap text
+        'align': 'center',     # Center alignment
+        'valign': 'vcenter'    # Vertical center alignment
+    })
+        # Loop through each row in the worksheet
+    for row in enumerate(data_list):
+        for cell in row:
+            xlsxsheet.write_blank(row, cell, None, format_with_border_wrap_center)
+        
+    # Define a dictionary to store the desired column widths
+    # column_widths = {'KR phòng': 20, 'KR team': 20, 'KR cá nhân': 20, 'Note': 20}  
+
+    # lấy vị trí các cột cần mở rộng khi align bằng openpyxl
+    column_names_30 = [krp, krt, krc, ctt, note,noteproof,QA]
+    column_positions_30 = [title_df.columns.get_loc(col_name) for col_name in column_names_30]
+
+    column_names_20 = [ type, et, rt]
+    column_positions_20 = [title_df.columns.get_loc(col_name) for col_name in column_names_20]
+
+    # Update the column widths
+    for index in column_positions_30:
+        xlsxsheet.set_column(index, index, 30)
+
+    # Update the column widths
+    for index in column_positions_20:
+        xlsxsheet.set_column(index, index, 20)
+        
+    # Đọc nội dung của sheet thành DataFrame
+    # data = sheet.values
+    # columns = next(data)  # Lấy tên cột từ dòng đầu tiên
+    # final_df = pd.DataFrame(data, columns=columns)  
+    # print("đây là excel file cuối : \n",final_df)
+
+    # Lưu Workbook
+    workbook.close(file_path)
+
 
 
 # def okr_quarter() -> None:
