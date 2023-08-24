@@ -170,6 +170,43 @@ def excelToDataframe(file_path):
     wb.close()
     return df
 
+# def assignHyperlinksForCellByCoordination(sheet, name_pos, link_pos, note_pos, file_path):
+#     # Đọc nội dung của sheet thành DataFrame
+#     data = sheet.values
+#     columns = next(data)  # Lấy tên cột từ dòng đầu tiên
+#     convert_df = pd.DataFrame(data, columns=columns)  
+#     # print("đây là convert_df : \n",convert_df)  
+
+#     xlsxworkbook = xlsxwriter.Workbook(options={'nan_inf_to_errors': True})
+#     xlsxsheet = xlsxworkbook.add_worksheet()
+
+#     for row_num, row_data in enumerate(convert_df):
+#         xlsxsheet.write_row(row_num, 0, row_data)
+
+#     hyperlink_format = xlsxworkbook.add_format({
+#     'color': 'blue',
+#     'underline': 1,
+#     })
+    
+#     row_index = 0
+#     for row in convert_df:
+#         text_string = row[name_pos]  
+#         url_string = row[link_pos]   
+#         row_index += 1 
+#         if is_valid_string(url_string):      
+#             if url_string not in proofURL:
+#                 cell_values = text_string.split(',')  # Split the comma-separated values
+#                 urls = url_string.split(',')
+#                 # print("đây là urls : \n",urls)
+#                 for value, url in zip(cell_values,urls):
+#                     rich_text = xlsxworkbook._xml_rich_inline_string
+#                     rich_text.append(value)
+#                     rich_text.append()
+#                     # cell_value = f'=HYPERLINK({url}, {value})'
+#                 xlsxsheet.write(row_index + 3, note_pos+1, rich_text) 
+
+#     xlsxworkbook.close(file_path)
+
 # format ra file kpi có các sheet kpi input là path các file excel
 def formatKPIExcelSheet(file_path,level) -> None:
 # xử lý dữ liệu với dataframe của pandas 
@@ -196,6 +233,9 @@ def formatKPIExcelSheet(file_path,level) -> None:
     proof_sum[proofStr].fillna('', inplace=True)
     proof_sum[proofStr] = proof_sum[proofStr].apply(lambda x: '' if x == None else x)
     proof_sum[proofURL] = proof_sum[proofURL].apply(lambda x: '' if x == None else x)
+    df.drop(proofStr, axis=1, inplace=True)
+    df.drop(proofURL, axis=1, inplace=True)
+    df  = pd.merge(df.drop_duplicates(subset=krid), proof_sum, on=krid)
     tsct_sum = df.groupby([ei, type])[tsct].sum().reset_index()
     kq_sum = df.groupby([ei, type])[kq].sum().reset_index()
     tl_sum = df.groupby([ei, type])[tl].sum().reset_index()
@@ -220,25 +260,24 @@ def formatKPIExcelSheet(file_path,level) -> None:
     # print("đây là max_indices: \n",max_indices)
     merged_sum_idx_df = pd.merge(
         max_indices, df_time_sum, on=ei, how='left')
+    # print("đây là merged_sum_idx_df",merged_sum_idx_df)
     merged_sum_idx_df.drop(columns=[ei], axis=1, inplace=True)
+    merged_sum_idx_df[et] = merged_sum_idx_df[et].where(merged_sum_idx_df[type] != "kpi")
+    merged_sum_idx_df[rt] = merged_sum_idx_df[rt].where(merged_sum_idx_df[type] != "kpi")
+    # merged_sum_idx_df[et] = merged_sum_idx_df[type].apply(lambda merged_sum_idx_df: '' if merged_sum_idx_df[type] == "kpi" else merged_sum_idx_df[et])
+    # merged_sum_idx_df[rt] = merged_sum_idx_df[type].apply(lambda merged_sum_idx_df: '' if merged_sum_idx_df[type] == "kpi" else merged_sum_idx_df[rt])
     merged_sum_df = pd.merge(df_data_sum, merged_sum_idx_df,
                              left_index=True, right_index=True, how='left')
+    # print("đây là merged_sum_df",merged_sum_df)
     merged_sum_df.fillna(0, inplace=True)
 
     merged_sum_df[et] = merged_sum_df[et].apply(lambda x: '' if x == 0 else x)
     merged_sum_df[rt] = merged_sum_df[rt].apply(lambda x: '' if x == 0 else x)
-    # print("đây là merged_sum_df: \n",merged_sum_df)
-
-
-
     # sắp xếp lại và lấy vị trí các đoạn cần insert các tổng vào (need_add_index_df), đồng thời dùng sorted_df cho các thao tác sau (sorted_df)
     sorted_df = df.sort_values(by=[ei, type], ascending=[
                                True, True]).reset_index()
     # xóa các record duplicate nếu 1 kpi/okr có nhiều proof
     sorted_df.drop(columns=['index'], axis=1, inplace=True)
-    sorted_df.drop(proofStr, axis=1, inplace=True)
-    sorted_df.drop(proofURL, axis=1, inplace=True)
-    sorted_df  = pd.merge(sorted_df.drop_duplicates(subset=krid), proof_sum, on=krid)
     sorted_df.drop(columns=[krid], axis=1, inplace=True)
     # print("dataframe sorted_df: \n",sorted_df)
     index_sorted_df = sorted_df[[ei, type]]
@@ -424,10 +463,39 @@ def formatKPIExcelSheet(file_path,level) -> None:
     note_proof_column = [noteproof,proofStr,proofURL]
     note_proof_column_position = [title_df.columns.get_loc(col_name) for col_name in note_proof_column]
     
-    
+    # row_index = 0
+    # font = Font(name='Arial',
+    #             size=11,
+    #             bold=False,
+    #             italic=False,
+    #             vertAlign=None,
+    #             underline='none',
+    #             strike=False,
+    #             color='00FF0000')
+    # inline_font = InlineFont(font)
 
-    # Lặp qua từng hàng trong sheet
-    # print("đây là level : \n",level)
+    # for row in sheet.iter_rows(min_row=4, values_only=True):
+    #         text_string = row[note_proof_column_position[1]]  
+    #         url_string = row[note_proof_column_position[2]]   
+    #         row_index += 1 
+    #         if is_valid_string(url_string):      
+    #             if url_string not in proofURL:
+    #                 cell_values = text_string.split(',')  # Split the comma-separated values
+    #                 urls = url_string.split(',')
+    #                 cell = sheet.cell(row=row_index + 3, column=note_proof_column_position[0]+1)
+    #                 combine_value="" 
+    #                 list_hyperlink=""
+    #                 # print("đây là urls : \n",urls)
+    #                 for value, url in zip(cell_values,urls):
+    #                     link= Hyperlink(url, value)  
+    #                     cell.font = font
+    #                     list_hyperlink.append(link)
+    #                     cell.hyperlink = list_hyperlink  
+                                         
+    #                 # print("đây là cell : \n",cell)
+    #     # Xóa cột dựa trên vị trí
+    # sheet.delete_cols(note_proof_column_position[1]+1, note_proof_column_position[2]+1)
+
     row_index = 0
     font = Font(name='Arial',
              size=11,
@@ -438,6 +506,16 @@ def formatKPIExcelSheet(file_path,level) -> None:
              strike=False,
              color='00FF0000')
     inline_font = InlineFont(font)
+
+    url_font = Font(name='Arial',
+             size=11,
+             bold=False,
+             italic=False,
+             vertAlign=None,
+             underline='none',
+             strike=False,
+             color='00FF0000')
+    url_inline_font = InlineFont(url_font)
 
     for row in sheet.iter_rows(min_row=4, values_only=True):
         text_string = row[note_proof_column_position[1]]  
@@ -451,7 +529,7 @@ def formatKPIExcelSheet(file_path,level) -> None:
                 # print("đây là urls : \n",urls)
                 for value, url in zip(cell_values,urls):
                     text_block = TextBlock(text=value+" : ",font=inline_font)
-                    url_block = TextBlock(text=url+"\n",font=inline_font)
+                    url_block = TextBlock(text=url+"\n",font=url_inline_font)
                     rich_text.append(text_block)
                     rich_text.append(url_block)
                     # cell_value = f'=HYPERLINK({url}, {value})'
@@ -461,11 +539,8 @@ def formatKPIExcelSheet(file_path,level) -> None:
     # Xóa cột dựa trên vị trí
     sheet.delete_cols(note_proof_column_position[1]+1, note_proof_column_position[2]+1)
 
-    # Đọc nội dung của sheet thành DataFrame
-    # data = sheet.values
-    # columns = next(data)  # Lấy tên cột từ dòng đầu tiên
-    # check_df = pd.DataFrame(data, columns=columns)  
-    # print("đây là check_df : \n",check_df)
+
+
 
     # Thiết lập tự động tăng kích thước các cột
     # for col in sheet.columns:
@@ -1053,20 +1128,6 @@ def formatKPIExcelSheetWithXLSXWriter(file_path,level) -> None:
 
     # Lưu Workbook
     workbook.close(file_path)
-
-
-
-# def okr_quarter() -> None:
-
-#     quarter_df = full_df.loc[full_df['type'] == 'okr']
-#     quarter_df['deadline'] = quarter_df['deadline'].dt.tz_localize(None)
-#     column_order = ['okr_kpi_id', 'id', 'full_name', 'department_name', 'team_name',
-#                     'objective_name', 'kr_phong', 'regularity', 'unit', 'condition',
-#                     'result', 'deadline', 'status', 'files']
-#     quarter_df = quarter_df[column_order]
-#     quarter_df = quarter_df.fillna('No data')
-#     quarter_df = quarter_df.set_index(['department_name', 'team_name', 'id', 'full_name', 'okr_kpi_id', 'objective_name'])
-#     quarter_df.to_excel('quarter.xlsx')
 
 
 # select ee.id as employeeId,
