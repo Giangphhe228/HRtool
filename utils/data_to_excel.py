@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import openpyxl
 import xlsxwriter
+from copy import copy
 from django.db import connection, connections
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -145,7 +146,7 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
         # dataframe.replace("CAT", "Đạt/Không đạt", inplace=True)
         dataframe.replace("month", "Tháng", inplace=True)
         # dataframe.fillna(0, inplace=True)
-        # formatResultExcelSheet(dataframe)
+        formatResultExcelSheet(dataframe)
         for value, str in levels.items():
             temp_df = dataframe.loc[dataframe['level'] == str]
             if temp_df.empty:
@@ -170,42 +171,42 @@ def excelToDataframe(file_path):
     wb.close()
     return df
 
-# def assignHyperlinksForCellByCoordination(sheet, name_pos, link_pos, note_pos, file_path):
-#     # Đọc nội dung của sheet thành DataFrame
-#     data = sheet.values
-#     columns = next(data)  # Lấy tên cột từ dòng đầu tiên
-#     convert_df = pd.DataFrame(data, columns=columns)  
-#     # print("đây là convert_df : \n",convert_df)  
+def assignHyperlinksForCellByCoordination(sheet, name_pos, link_pos, note_pos, file_path):
+    # Đọc nội dung của sheet thành DataFrame
+    data = sheet.values
+    columns = next(data)  # Lấy tên cột từ dòng đầu tiên
+    convert_df = pd.DataFrame(data, columns=columns)  
+    # print("đây là convert_df : \n",convert_df)  
 
-#     xlsxworkbook = xlsxwriter.Workbook(options={'nan_inf_to_errors': True})
-#     xlsxsheet = xlsxworkbook.add_worksheet()
+    xlsxworkbook = xlsxwriter.Workbook(options={'nan_inf_to_errors': True})
+    xlsxsheet = xlsxworkbook.add_worksheet()
 
-#     for row_num, row_data in enumerate(convert_df):
-#         xlsxsheet.write_row(row_num, 0, row_data)
+    for row_num, row_data in enumerate(convert_df):
+        xlsxsheet.write_row(row_num, 0, row_data)
 
-#     hyperlink_format = xlsxworkbook.add_format({
-#     'color': 'blue',
-#     'underline': 1,
-#     })
+    hyperlink_format = xlsxworkbook.add_format({
+    'color': 'blue',
+    'underline': 1,
+    })
     
-#     row_index = 0
-#     for row in convert_df:
-#         text_string = row[name_pos]  
-#         url_string = row[link_pos]   
-#         row_index += 1 
-#         if is_valid_string(url_string):      
-#             if url_string not in proofURL:
-#                 cell_values = text_string.split(',')  # Split the comma-separated values
-#                 urls = url_string.split(',')
-#                 # print("đây là urls : \n",urls)
-#                 for value, url in zip(cell_values,urls):
-#                     rich_text = xlsxworkbook._xml_rich_inline_string
-#                     rich_text.append(value)
-#                     rich_text.append()
-#                     # cell_value = f'=HYPERLINK({url}, {value})'
-#                 xlsxsheet.write(row_index + 3, note_pos+1, rich_text) 
+    row_index = 0
+    for row in convert_df:
+        text_string = row[name_pos]  
+        url_string = row[link_pos]   
+        row_index += 1 
+        if is_valid_string(url_string):      
+            if url_string not in proofURL:
+                cell_values = text_string.split(',')  # Split the comma-separated values
+                urls = url_string.split(',')
+                # print("đây là urls : \n",urls)
+                for value, url in zip(cell_values,urls):
+                    rich_text = xlsxworkbook._xml_rich_inline_string
+                    rich_text.append(value)
+                    rich_text.append()
+                    # cell_value = f'=HYPERLINK({url}, {value})'
+                xlsxsheet.write(row_index + 3, note_pos+1, rich_text) 
 
-#     xlsxworkbook.close(file_path)
+    xlsxworkbook.close(file_path)
 
 # format ra file kpi có các sheet kpi input là path các file excel
 def formatKPIExcelSheet(file_path,level) -> None:
@@ -462,39 +463,6 @@ def formatKPIExcelSheet(file_path,level) -> None:
     # lấy vị trí column link bằng chứng
     note_proof_column = [noteproof,proofStr,proofURL]
     note_proof_column_position = [title_df.columns.get_loc(col_name) for col_name in note_proof_column]
-    
-    # row_index = 0
-    # font = Font(name='Arial',
-    #             size=11,
-    #             bold=False,
-    #             italic=False,
-    #             vertAlign=None,
-    #             underline='none',
-    #             strike=False,
-    #             color='00FF0000')
-    # inline_font = InlineFont(font)
-
-    # for row in sheet.iter_rows(min_row=4, values_only=True):
-    #         text_string = row[note_proof_column_position[1]]  
-    #         url_string = row[note_proof_column_position[2]]   
-    #         row_index += 1 
-    #         if is_valid_string(url_string):      
-    #             if url_string not in proofURL:
-    #                 cell_values = text_string.split(',')  # Split the comma-separated values
-    #                 urls = url_string.split(',')
-    #                 cell = sheet.cell(row=row_index + 3, column=note_proof_column_position[0]+1)
-    #                 combine_value="" 
-    #                 list_hyperlink=""
-    #                 # print("đây là urls : \n",urls)
-    #                 for value, url in zip(cell_values,urls):
-    #                     link= Hyperlink(url, value)  
-    #                     cell.font = font
-    #                     list_hyperlink.append(link)
-    #                     cell.hyperlink = list_hyperlink  
-                                         
-    #                 # print("đây là cell : \n",cell)
-    #     # Xóa cột dựa trên vị trí
-    # sheet.delete_cols(note_proof_column_position[1]+1, note_proof_column_position[2]+1)
 
     row_index = 0
     font = Font(name='Arial',
@@ -514,7 +482,7 @@ def formatKPIExcelSheet(file_path,level) -> None:
              vertAlign=None,
              underline='none',
              strike=False,
-             color='00FF0000')
+             color='6699CC')
     url_inline_font = InlineFont(url_font)
 
     for row in sheet.iter_rows(min_row=4, values_only=True):
@@ -538,9 +506,6 @@ def formatKPIExcelSheet(file_path,level) -> None:
                 # print("đây là cell : \n",cell)
     # Xóa cột dựa trên vị trí
     sheet.delete_cols(note_proof_column_position[1]+1, note_proof_column_position[2]+1)
-
-
-
 
     # Thiết lập tự động tăng kích thước các cột
     # for col in sheet.columns:
@@ -670,27 +635,12 @@ def synthesizeExcelFilebySheet(listDirectory,targetDirectory) -> None:
 
         # Lấy danh sách các vùng merge
         merged_ranges = sheet_original.merged_cells.ranges
-        # print("merged_ranges:",merged_ranges)
         # Loop through each merged cell range
         for merged_range in merged_ranges:
             # Extract the start and end row indices from the range string
-            start_col, start_row, end_col, end_row = range_boundaries(merged_range.coord)
-            # print("coordination:",start_row, start_col, end_row, end_col)
-            
+            start_col, start_row, end_col, end_row = range_boundaries(merged_range.coord)      
             # Merge the cells in the range
             sheet_combined.merge_cells(start_row=start_row, start_column=start_col, end_row=end_row, end_column=end_col)
-
-        # # Duyệt qua các cell trong worksheet cũ
-        # for row in sheet_original.iter_rows(min_row=1, max_row=sheet_original.max_row, min_col=1, max_col=sheet_original.max_column):
-        #     for cell in row:
-        #         # Nếu cell thuộc vùng merge
-        #         if cell.coordinate in merged_ranges:
-        #             # Lấy giá trị của vùng merge
-        #             merged_value = sheet_original[cell.coordinate].value
-        #             # Gán giá trị của vùng merge cho tất cả các cell trong vùng merge
-        #             for merged_cell in sheet_original[merged_ranges[0]]:
-        #                 sheet_combined.cell(row=merged_cell.row, column=merged_cell.column, value=merged_value)
-
     # Xóa sheet mặc định trong Workbook tổng hợp
     if 'Sheet' in wb_combined.sheetnames:
         wb_combined.remove(wb_combined['Sheet'])
@@ -746,10 +696,30 @@ def formatResultExcelSheet(dataframe) -> None:
     time_merged_df.rename(columns={ei: "Mã NV"}, inplace=True)
     time_merged_df.rename(columns={name: "Họ tên"}, inplace=True)
     time_merged_df.rename(columns={lv: "Level"}, inplace=True)
-    print("đây là time_merged_df:\n",time_merged_df)
+    
 
-    for str in levels:
-        df = time_merged_df[df["Level"] == str]
+    for value,levelstr in levels.items():
+        # globals()[levelstr+"_df"]
+        df = time_merged_df[time_merged_df["Level"] == levelstr].reset_index()
+        df.drop(columns=["Mã NV"], axis=1, inplace=True)
+        df.drop(columns=["Level"], axis=1, inplace=True)
+        df.drop(columns=["index"], axis=1, inplace=True)
+        df.rename(columns={"Họ tên": "Nhân sự"}, inplace=True)
+        kpi_mean = df['kết quả KPI'].mean()
+        okr_mean = df['kết quả OKR'].mean()
+        et_mean = df[et].mean()
+        rt_mean = df[rt].mean()
+        cl_mean = df['Thời gian chênh lệch'].mean()
+        print("kpi_mean:\n",kpi_mean)
+        df_data_mean = pd.DataFrame({ "Nhân sự": ["Trung bình"],
+                                'kết quả KPI': [kpi_mean],
+                                'kết quả OKR': [okr_mean],
+                                et: [et_mean],
+                                rt: [rt_mean],
+                                'Thời gian chênh lệch': [cl_mean]})
+        globals()[levelstr+"_df"] = pd.concat([df, df_data_mean], ignore_index=True)
+        print("df:")
+        print(df)
         
 def formatKPIExcelSheetWithXLSXWriter(file_path,level) -> None:
 # xử lý dữ liệu với dataframe của pandas 
@@ -1010,13 +980,10 @@ def formatKPIExcelSheetWithXLSXWriter(file_path,level) -> None:
              added_sheet_row+=3       
         else:
              added_sheet_row+=2
-
     # Get the dimensions of the worksheet
     num_rows = xlsxsheet.dim_rowmax + 1
     num_cols = xlsxsheet.dim_colmax + 1
-
     data_list = []
-
     # Loop through rows and columns to gather data
     for row_num in range(num_rows):
         row_data = []
@@ -1025,7 +992,6 @@ def formatKPIExcelSheetWithXLSXWriter(file_path,level) -> None:
             print("đây là cell_value:",cell_value)
             row_data.append(cell_value)
         data_list.append(row_data)
-
     # Biến trạng thái
     merging = False
     merge_start = None
@@ -1044,9 +1010,6 @@ def formatKPIExcelSheetWithXLSXWriter(file_path,level) -> None:
                 merging = False
                 xlsxsheet.merge_range(merge_start, 1, row_index - 1, 1, merge_value)
                 merge_value=None
-
-
-
     # lấy vị trí column link bằng chứng
     note_proof_column = [noteproof,proofStr,proofURL]
     note_proof_column_position = [title_df.columns.get_loc(col_name) for col_name in note_proof_column]
@@ -1055,7 +1018,6 @@ def formatKPIExcelSheetWithXLSXWriter(file_path,level) -> None:
     'color': 'blue',
     'underline': 1,
     })
-    
     row_index = 0
     for row in enumerate(data_list, start=4):
         text_string = row[note_proof_column_position[1]]  
@@ -1076,19 +1038,6 @@ def formatKPIExcelSheetWithXLSXWriter(file_path,level) -> None:
                 xlsxsheet.write(row_index + 3, note_proof_column_position[0]+1, rich_text) 
     # Xóa cột dựa trên vị trí
     xlsxsheet.set_column(note_proof_column_position[1]+1, note_proof_column_position[2]+1, 0)
-
-    # Thiết lập tự động tăng kích thước các cột
-    # for col in sheet.columns:
-    #     max_length = 0
-    #     for cell in col:
-    #         try:
-    #             if len(str(cell.value)) > max_length:
-    #                 max_length = len(cell.value)
-    #         except:
-    #             pass
-    #     adjusted_width = (max_length + 2) * 1.2
-    #     sheet.column_dimensions[col[0].column_letter].width = adjusted_width
-
     # Đặt viền cho các cell
     format_with_border_wrap_center = workbook.add_format({
         'border': 1,          # Border width
@@ -1101,10 +1050,6 @@ def formatKPIExcelSheetWithXLSXWriter(file_path,level) -> None:
     for row in enumerate(data_list):
         for cell in row:
             xlsxsheet.write_blank(row, cell, None, format_with_border_wrap_center)
-        
-    # Define a dictionary to store the desired column widths
-    # column_widths = {'KR phòng': 20, 'KR team': 20, 'KR cá nhân': 20, 'Note': 20}  
-
     # lấy vị trí các cột cần mở rộng khi align bằng openpyxl
     column_names_30 = [krp, krt, krc, ctt, note,noteproof,QA]
     column_positions_30 = [title_df.columns.get_loc(col_name) for col_name in column_names_30]
@@ -1119,47 +1064,6 @@ def formatKPIExcelSheetWithXLSXWriter(file_path,level) -> None:
     # Update the column widths
     for index in column_positions_20:
         xlsxsheet.set_column(index, index, 20)
-        
-    # Đọc nội dung của sheet thành DataFrame
-    # data = sheet.values
-    # columns = next(data)  # Lấy tên cột từ dòng đầu tiên
-    # final_df = pd.DataFrame(data, columns=columns)  
-    # print("đây là excel file cuối : \n",final_df)
 
     # Lưu Workbook
     workbook.close(file_path)
-
-
-# select ee.id as employeeId,
-#                             full_name as name,
-#                             level,
-#                             ee.team_id as teamId,
-#                             et.name as teamName,
-#                             type,
-#                             oo.kr_id as krId,
-#                             oo.key_result_department as krDep,
-#                             oo.key_result_team as krTeam,
-#                             oo.key_result_personal as krPer,
-#                             ofo.formula_name as formulaName,
-#                             ofo.formula_value as formulaValue,
-#                             os.source_name as sourceName,
-#                             oo.regularity,
-#                             oo.unit,
-#                             oo.condition,
-#                             oo.norm,
-#                             oo.weight,
-#                             oo.result,
-#                             oo.weight*oo.result as ratio,
-#                             oo.estimated,
-#                             oo.actual,
-#                             oo.note
-#                             FROM "Employee_employee" as ee,
-#                                 "Employee_team" as et,
-#                                 "OKR_okr" as oo,
-#                                 "OKR_formula" as ofo,
-#                                 "OKR_source" as os,
-#                                 "Employee_department" as ed
-#                             where ee.team_id=et.team_id
-#                                 and ee.id=oo.user_id
-#                                 and oo.formula_id=ofo.id
-#                                 and oo.source_id=os.id
