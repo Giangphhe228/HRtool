@@ -15,7 +15,6 @@ from urllib.parse import urlparse
 from openpyxl.worksheet.hyperlink import Hyperlink
 from openpyxl.cell.text import InlineFont
 from openpyxl.cell.rich_text import TextBlock, CellRichText
-from openpyxl.cell.text import Font
 from openpyxl.cell.text import Text
 
 levels = {

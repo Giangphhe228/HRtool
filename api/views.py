@@ -296,7 +296,7 @@ class ExcelView(APIView):
         wb_obj = openpyxl.load_workbook(output_excel)
         if os.path.exists(output_excel):   
             response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',status=status.HTTP_200_OK)
-            response['Content-Encoding'] = 'gzip'
+            # response['Content-Encoding'] = 'gzip'
             if month is not None:
                 response['Content-Disposition'] = f'attachment; filename=kpi_t{month}.xlsx'
             else:
