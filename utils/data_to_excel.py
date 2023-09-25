@@ -213,6 +213,14 @@ def formatKPIExcelSheet(file_path,level) -> None:
 # -----------------------------------------------------------------------------------------------------------
     # Tạo DataFrame từ dữ liệu
     df = excelToDataframe(file_path)
+    print("đây là file_path: \n",file_path)
+    print("đây là df[tsct]: \n",df[tsct])
+    df[tsct].fillna(0, inplace=True)
+    df[kq].fillna(0, inplace=True)
+    df[tl].fillna(0, inplace=True)
+    df[et].fillna(0, inplace=True)
+    df[rt].fillna(0, inplace=True)
+
     df[tsct] = df[tsct].astype(int)
     df[kq] = df[kq].astype(float)
     df[tl] = df[tl].astype(float)
