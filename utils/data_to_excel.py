@@ -113,7 +113,7 @@ def GenerateExcelSheet(basedir,data_dictionary) -> None:
                                 LEFT JOIN "levels" as lv ON ell.level_id = lv.id
                                 LEFT JOIN "proofs_okr_kpi_links" as pokl ON okr.id=pokl.okr_kpi_id
                                 LEFT JOIN "proofs" as pr ON pokl.proof_id=pr.id
-                                WHERE 1=1
+                                WHERE 1=1 and okr.regularly = 'month'
                     '''
         # print("month", type(data_dictionary.get("month")))
         # print("year", type(data_dictionary.get("year")))
@@ -224,6 +224,7 @@ def formatKPIExcelSheet(file_path,level) -> None:
     df[tsct] = df[tsct].astype(int)
     df[kq] = df[kq].astype(float)
     df[tl] = df[tl].astype(float)
+    df[tl]=(df[tsct]*df[kq])/100
     df[et] = df[et].astype(float)
     df[rt] = df[rt].astype(float)
     df[email] = df[email].apply(lambda x: x.split('@')[0] if x is not None else x)
